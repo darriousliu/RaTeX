@@ -1395,9 +1395,17 @@ fn layout_accent(
     } else if use_arrow_path {
         (body_box.height + gap + accent_box.height, body_box.depth)
     } else {
-        // Total height: clearance + full accent height (accent extends above its baseline)
+        // KaTeX uses a fixed strut height (0.78056em) only for \hat, \bar, \dot, \ddot.
+        // Other glyph accents (e.g. \tilde → 0.74842) use a lower height; keep original formula.
+        const ACCENT_ABOVE_STRUT_HEIGHT_EM: f64 = 0.78056;
+        let use_fixed_strut = matches!(label, "\\hat" | "\\bar" | "\\=" | "\\dot" | "\\ddot");
         let accent_top = clearance + accent_box.height;
-        (body_box.height.max(accent_top), body_box.depth)
+        let h = if use_fixed_strut {
+            body_box.height.max(ACCENT_ABOVE_STRUT_HEIGHT_EM)
+        } else {
+            body_box.height.max(accent_top)
+        };
+        (h, body_box.depth)
     };
 
     LayoutBox {

@@ -139,7 +139,6 @@ fn ink_compare(
     };
 
     let mut ref_ink = 0usize;
-    let mut test_ink = 0usize;
     let mut both_ink = 0usize;
     let mut either_ink = 0usize;
 
@@ -148,7 +147,6 @@ fn ink_compare(
             let r = get_ink(&rn, rnw, rnh, ref_ch, x, y);
             let t = get_ink(&tn, tnw, tnh, test_ch, x, y);
             if r { ref_ink += 1; }
-            if t { test_ink += 1; }
             if r && t { both_ink += 1; }
             if r || t { either_ink += 1; }
         }

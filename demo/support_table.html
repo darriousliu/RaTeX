@@ -96,6 +96,7 @@
     .td-score  { width: 110px; text-align: center; }
 
     .katex-cell, .ratex-cell { min-height: 28px; display: flex; align-items: center; }
+    .katex-cell { overflow: hidden; max-width: 190px; }
     /* KaTeX applies font-size:1.21em internally; set container so 1.21em = 20px (RaTeX em) */
     .katex-cell { font-size: 16.53px; }
     .ratex-cell canvas { max-width: 100%; }
@@ -123,8 +124,29 @@
     .footer { text-align: center; padding: 20px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
     .footer a { color: var(--blue); text-decoration: none; }
 
-    @media (max-width: 680px) {
-      .td-source { width: 130px; } .td-katex, .td-ratex { width: 110px; }
+    @media (max-width: 768px) {
+      .toolbar { flex-wrap: wrap; gap: 6px; }
+      .toolbar-right { margin-left: 0; order: 3; width: 100%; }
+      .search-wrap { min-width: 120px; }
+      .stats-row { gap: 20px; }
+      .stat-num { font-size: 28px; }
+      .hero { padding: 24px 16px 20px; }
+    }
+    @media (max-width: 600px) {
+      .td-source { display: none; }
+      .td-katex, .td-ratex { width: auto; }
+      .katex-cell { max-width: 30vw; }
+      .td-score { width: 70px; }
+      .score-badge { min-width: 44px; padding: 2px 6px; font-size: 11px; }
+      .score-badge .sub { display: none; }
+      .ratex-cell canvas { max-width: none; }
+    }
+    @media (max-width: 420px) {
+      .td-idx { display: none; }
+      .hero h1 { font-size: 18px; }
+      .filter-btn { padding: 3px 7px; font-size: 11px; }
+      .legend { gap: 6px; }
+      .legend-item:last-child { display: none; }
     }
   </style>
 </head>
@@ -302,11 +324,17 @@ function fontIdToCss(fontId, sizePx) {
 
 // ── draw RaTeX ──
 function drawDisplayList(dl, canvas, em, pad) {
+  const dpr = window.devicePixelRatio || 1;
   const totalH = dl.height + dl.depth;
-  canvas.width  = Math.max(1, Math.ceil(dl.width*em + 2*pad));
-  canvas.height = Math.max(1, Math.ceil(totalH*em + 2*pad));
+  const cssW = Math.max(1, Math.ceil(dl.width * em + 2 * pad));
+  const cssH = Math.max(1, Math.ceil(totalH * em + 2 * pad));
+  canvas.width  = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
   ctx.save(); ctx.translate(pad, pad);
   for (const item of dl.items) {
     const c = item.color;
