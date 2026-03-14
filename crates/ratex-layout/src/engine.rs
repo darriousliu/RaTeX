@@ -1005,6 +1005,26 @@ fn build_op_base(
             },
             color: options.color,
         };
+
+        // \oiint and \oiiint: overlay an ellipse on the integral (∬/∭) like \oint’s circle.
+        // resolve_op_char already maps them to ∬/∭; add the circle overlay here.
+        if op_name == "\\oiint" || op_name == "\\oiiint" {
+            let w = base.width;
+            let ellipse_commands = ellipse_overlay_path(w, base.height, base.depth);
+            let overlay_box = LayoutBox {
+                width: w,
+                height: base.height,
+                depth: base.depth,
+                content: BoxContent::SvgPath {
+                    commands: ellipse_commands,
+                    fill: false,
+                },
+                color: options.color,
+            };
+            let with_overlay = make_hbox(vec![base, LayoutBox::new_kern(-w), overlay_box]);
+            return (with_overlay, italic);
+        }
+
         (base, italic)
     } else if let Some(body_nodes) = body {
         let base = layout_expression(body_nodes, options, true);
@@ -1048,9 +1068,8 @@ fn compute_op_base_shift(base: &LayoutBox, options: &LayoutOptions) -> f64 {
 
 /// Resolve an op command name to its Unicode character.
 fn resolve_op_char(name: &str) -> char {
-    // \oiint and \oiiint use circle-overlay notation in KaTeX.
-    // Their Unicode codepoints (U+222F, U+2230) aren't in KaTeX fonts.
-    // Use ∬/∭ (U+222C/U+222D) as the base glyph; circles are skipped for now.
+    // \oiint and \oiiint: use ∬/∭ as base glyph; circle overlay is drawn in build_op_base
+    // (same idea as \oint’s circle, but U+222F/U+2230 often missing in math fonts).
     match name {
         "\\oiint"  => return '\u{222C}', // ∬ (double integral)
         "\\oiiint" => return '\u{222D}', // ∭ (triple integral)
@@ -2667,6 +2686,53 @@ fn layout_textcircled(body_box: LayoutBox, options: &LayoutOptions) -> LayoutBox
 // ============================================================================
 // Path generation helpers
 // ============================================================================
+
+/// Build path commands for a horizontal ellipse (circle overlay for \oiint, \oiiint).
+/// Box-local coords: origin at baseline-left, x right, y down (positive = below baseline).
+/// Ellipse is centered in the box and spans most of the integral width.
+fn ellipse_overlay_path(width: f64, height: f64, depth: f64) -> Vec<PathCommand> {
+    let cx = width / 2.0;
+    let cy = (depth - height) / 2.0; // vertical center
+    let a = width * 0.402_f64; // horizontal semi-axis (0.36 * 1.2)
+    let b = 0.3_f64;          // vertical semi-axis (0.1 * 2)
+    let k = 0.62_f64;          // Bezier factor: larger = fuller ellipse (0.5523 ≈ exact circle)
+    vec![
+        PathCommand::MoveTo { x: cx + a, y: cy },
+        PathCommand::CubicTo {
+            x1: cx + a,
+            y1: cy - k * b,
+            x2: cx + k * a,
+            y2: cy - b,
+            x: cx,
+            y: cy - b,
+        },
+        PathCommand::CubicTo {
+            x1: cx - k * a,
+            y1: cy - b,
+            x2: cx - a,
+            y2: cy - k * b,
+            x: cx - a,
+            y: cy,
+        },
+        PathCommand::CubicTo {
+            x1: cx - a,
+            y1: cy + k * b,
+            x2: cx - k * a,
+            y2: cy + b,
+            x: cx,
+            y: cy + b,
+        },
+        PathCommand::CubicTo {
+            x1: cx + k * a,
+            y1: cy + b,
+            x2: cx + a,
+            y2: cy + k * b,
+            x: cx + a,
+            y: cy,
+        },
+        PathCommand::Close,
+    ]
+}
 
 fn shift_path_y(cmds: Vec<PathCommand>, dy: f64) -> Vec<PathCommand> {
     cmds.into_iter().map(|c| match c {
