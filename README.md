@@ -40,7 +40,7 @@ RaTeX cuts the web stack out entirely. One Rust core, one display list, every pl
 - **WASM** (`ratex-wasm`) for drop-in browser use via `<ratex-formula>` Web Component
 - **Server-side PNG** via tiny-skia — no browser needed
 
-**[→ Live support table: RaTeX vs KaTeX across all 916 test formulas](https://erweixin.github.io/RaTeX/demo/support_table.html)**
+**[→ Live Demo](https://erweixin.github.io/RaTeX/demo/index.html)** — type LaTeX and compare RaTeX (Rust/WASM) vs KaTeX side-by-side · **[→ Support table](https://erweixin.github.io/RaTeX/demo/support_table.html)** — RaTeX vs KaTeX across all 916 test formulas
 
 ---
 

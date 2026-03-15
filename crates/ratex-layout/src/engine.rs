@@ -1009,9 +1009,12 @@ fn build_op_base(
             Some(m) => (m.width, m.height, m.depth, m.italic),
             None => (1.0, 0.75, 0.25, 0.0),
         };
+        // Include italic correction in width so limits centered above/below don't overlap
+        // the operator's right-side extension (e.g. integral ∫ has non-zero italic).
+        let width_with_italic = width + italic;
 
         let base = LayoutBox {
-            width,
+            width: width_with_italic,
             height,
             depth,
             content: BoxContent::Glyph {
@@ -1020,6 +1023,26 @@ fn build_op_base(
             },
             color: options.color,
         };
+
+        // \oiint and \oiiint: overlay an ellipse on the integral (∬/∭) like \oint’s circle.
+        // resolve_op_char already maps them to ∬/∭; add the circle overlay here.
+        if op_name == "\\oiint" || op_name == "\\oiiint" {
+            let w = base.width;
+            let ellipse_commands = ellipse_overlay_path(w, base.height, base.depth);
+            let overlay_box = LayoutBox {
+                width: w,
+                height: base.height,
+                depth: base.depth,
+                content: BoxContent::SvgPath {
+                    commands: ellipse_commands,
+                    fill: false,
+                },
+                color: options.color,
+            };
+            let with_overlay = make_hbox(vec![base, LayoutBox::new_kern(-w), overlay_box]);
+            return (with_overlay, italic);
+        }
+
         (base, italic)
     } else if let Some(body_nodes) = body {
         let base = layout_expression(body_nodes, options, true);
@@ -1063,9 +1086,8 @@ fn compute_op_base_shift(base: &LayoutBox, options: &LayoutOptions) -> f64 {
 
 /// Resolve an op command name to its Unicode character.
 fn resolve_op_char(name: &str) -> char {
-    // \oiint and \oiiint use circle-overlay notation in KaTeX.
-    // Their Unicode codepoints (U+222F, U+2230) aren't in KaTeX fonts.
-    // Use ∬/∭ (U+222C/U+222D) as the base glyph; circles are skipped for now.
+    // \oiint and \oiiint: use ∬/∭ as base glyph; circle overlay is drawn in build_op_base
+    // (same idea as \oint’s circle, but U+222F/U+2230 often missing in math fonts).
     match name {
         "\\oiint"  => return '\u{222C}', // ∬ (double integral)
         "\\oiiint" => return '\u{222D}', // ∭ (triple integral)
@@ -1131,19 +1153,22 @@ fn layout_op_limits_inner(
     let sup_ratio = sup_style.size_multiplier() / options.style.size_multiplier();
     let sub_ratio = sub_style.size_multiplier() / options.style.size_multiplier();
 
+    // Extra vertical padding so limits don't sit too close to the operator (e.g. ∫_0^1).
+    let extra_clearance = 0.08_f64;
+
     let sup_data = sup_node.map(|s| {
         let sup_opts = options.with_style(sup_style);
         let elem = layout_node(s, &sup_opts);
-        let kern = (metrics.big_op_spacing1)
-            .max(metrics.big_op_spacing3 - elem.depth * sup_ratio);
+        let kern = (metrics.big_op_spacing1 + extra_clearance)
+            .max(metrics.big_op_spacing3 - elem.depth * sup_ratio + extra_clearance);
         (elem, kern)
     });
 
     let sub_data = sub_node.map(|s| {
         let sub_opts = options.with_style(sub_style);
         let elem = layout_node(s, &sub_opts);
-        let kern = (metrics.big_op_spacing2)
-            .max(metrics.big_op_spacing4 - elem.height * sub_ratio);
+        let kern = (metrics.big_op_spacing2 + extra_clearance)
+            .max(metrics.big_op_spacing4 - elem.height * sub_ratio + extra_clearance);
         (elem, kern)
     });
 
@@ -2110,9 +2135,9 @@ fn layout_enclose(
         return layout_angl(body, options);
     }
 
-    // \cancel, \bcancel, \xcancel, \sout: strike-through overlays — just show body for now
+    // \cancel, \bcancel, \xcancel, \sout: strike-through overlays
     if matches!(label, "\\cancel" | "\\bcancel" | "\\xcancel" | "\\sout") {
-        return layout_node(body, options);
+        return layout_cancel(label, body, options);
     }
 
     // KaTeX defaults: fboxpad = 3pt, fboxrule = 0.4pt
@@ -2166,6 +2191,81 @@ fn layout_raisebox(shift: f64, body: &ParseNode, options: &LayoutOptions) -> Lay
             body: Box::new(inner),
             shift,
         },
+        color: options.color,
+    }
+}
+
+/// Layout \cancel, \bcancel, \xcancel, \sout — body with strike-through line(s) overlay.
+/// Line extends beyond content (like KaTeX/fixtures) and uses ~45° diagonal for \cancel/\bcancel.
+fn layout_cancel(
+    label: &str,
+    body: &ParseNode,
+    options: &LayoutOptions,
+) -> LayoutBox {
+    use crate::layout_box::BoxContent;
+    let inner = layout_node(body, options);
+    let w = inner.width.max(0.01);
+    let h = inner.height;
+    let d = inner.depth;
+    // Extend stroke beyond content on both ends (match fixtures 0074, 0146)
+    let pad = 0.14_f64;
+
+    let commands: Vec<PathCommand> = match label {
+        "\\cancel" => {
+            // Diagonal top-right to bottom-left (~45°), extended beyond box
+            vec![
+                PathCommand::MoveTo { x: -pad, y: d + pad },
+                PathCommand::LineTo { x: w + pad, y: -h - pad },
+            ]
+        }
+        "\\bcancel" => {
+            // Diagonal top-left to bottom-right (~45°), extended beyond box
+            vec![
+                PathCommand::MoveTo { x: w + pad, y: d + pad },
+                PathCommand::LineTo { x: -pad, y: -h - pad },
+            ]
+        }
+        "\\xcancel" => {
+            // Both diagonals, extended
+            vec![
+                PathCommand::MoveTo { x: -pad, y: d + pad },
+                PathCommand::LineTo { x: w + pad, y: -h - pad },
+                PathCommand::MoveTo { x: w + pad, y: d + pad },
+                PathCommand::LineTo { x: -pad, y: -h - pad },
+            ]
+        }
+        "\\sout" => {
+            // Horizontal line through vertical center, extended
+            let mid_y = (d - h) * 0.5_f64;
+            vec![
+                PathCommand::MoveTo { x: -pad, y: mid_y },
+                PathCommand::LineTo { x: w + pad, y: mid_y },
+            ]
+        }
+        _ => vec![],
+    };
+
+    let line_w = w + 2.0 * pad;
+    let line_h = h + pad;
+    let line_d = d + pad;
+    let line_box = LayoutBox {
+        width: line_w,
+        height: line_h,
+        depth: line_d,
+        content: BoxContent::SvgPath {
+            commands,
+            fill: false,
+        },
+        color: options.color,
+    };
+
+    // Draw line first (behind), then body on top. Line box is wider so stroke extends past content.
+    let body_shifted = make_hbox(vec![LayoutBox::new_kern(-line_w), inner]);
+    LayoutBox {
+        width: w,
+        height: h,
+        depth: d,
+        content: BoxContent::HBox(vec![line_box, body_shifted]),
         color: options.color,
     }
 }
@@ -2702,6 +2802,53 @@ fn layout_textcircled(body_box: LayoutBox, options: &LayoutOptions) -> LayoutBox
 // ============================================================================
 // Path generation helpers
 // ============================================================================
+
+/// Build path commands for a horizontal ellipse (circle overlay for \oiint, \oiiint).
+/// Box-local coords: origin at baseline-left, x right, y down (positive = below baseline).
+/// Ellipse is centered in the box and spans most of the integral width.
+fn ellipse_overlay_path(width: f64, height: f64, depth: f64) -> Vec<PathCommand> {
+    let cx = width / 2.0;
+    let cy = (depth - height) / 2.0; // vertical center
+    let a = width * 0.402_f64; // horizontal semi-axis (0.36 * 1.2)
+    let b = 0.3_f64;          // vertical semi-axis (0.1 * 2)
+    let k = 0.62_f64;          // Bezier factor: larger = fuller ellipse (0.5523 ≈ exact circle)
+    vec![
+        PathCommand::MoveTo { x: cx + a, y: cy },
+        PathCommand::CubicTo {
+            x1: cx + a,
+            y1: cy - k * b,
+            x2: cx + k * a,
+            y2: cy - b,
+            x: cx,
+            y: cy - b,
+        },
+        PathCommand::CubicTo {
+            x1: cx - k * a,
+            y1: cy - b,
+            x2: cx - a,
+            y2: cy - k * b,
+            x: cx - a,
+            y: cy,
+        },
+        PathCommand::CubicTo {
+            x1: cx - a,
+            y1: cy + k * b,
+            x2: cx - k * a,
+            y2: cy + b,
+            x: cx,
+            y: cy + b,
+        },
+        PathCommand::CubicTo {
+            x1: cx + k * a,
+            y1: cy + b,
+            x2: cx + a,
+            y2: cy + k * b,
+            x: cx + a,
+            y: cy,
+        },
+        PathCommand::Close,
+    ]
+}
 
 fn shift_path_y(cmds: Vec<PathCommand>, dy: f64) -> Vec<PathCommand> {
     cmds.into_iter().map(|c| match c {
