@@ -198,7 +198,7 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
             let bar_thickness = if *has_bar_line {
                 bar_size
                     .as_ref()
-                    .map(|m| m.number * options.metrics().default_rule_thickness)
+                    .map(|m| measurement_to_em(m, options))
                     .unwrap_or(options.metrics().default_rule_thickness)
             } else {
                 0.0
