@@ -31,5 +31,8 @@ xcuserdata/
 platforms/ios/RaTeX.xcframework/
 platforms/flutter/ios/RaTeX.xcframework/
 
+# Android — native libs built by platforms/android/build-android.sh (do not commit)
+platforms/android/src/main/jniLibs/
+
 # macOS
 .DS_Store

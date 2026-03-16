@@ -8,20 +8,23 @@
 #
 # Output: platforms/android/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libratex_ffi.so
 
-set -euo pipefail
+set -eo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 JNILIBS="$REPO_ROOT/platforms/android/src/main/jniLibs"
 
-declare -A ABI_MAP=(
-    ["aarch64-linux-android"]="arm64-v8a"
-    ["armv7-linux-androideabi"]="armeabi-v7a"
-    ["x86_64-linux-android"]="x86_64"
-)
+abi_for() {
+    case "$1" in
+        aarch64-linux-android)  echo "arm64-v8a" ;;
+        armv7-linux-androideabi) echo "armeabi-v7a" ;;
+        x86_64-linux-android)   echo "x86_64" ;;
+        *) echo "unknown target: $1" >&2; exit 1 ;;
+    esac
+}
 
 echo "==> Building ratex-ffi for Android targets..."
-for RUST_TARGET in "${!ABI_MAP[@]}"; do
-    ABI="${ABI_MAP[$RUST_TARGET]}"
+for RUST_TARGET in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android; do
+    ABI="$(abi_for "$RUST_TARGET")"
     echo "    → $RUST_TARGET ($ABI)"
     cargo ndk \
         --target "$RUST_TARGET" \

@@ -5,18 +5,25 @@ package io.ratex
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
+import android.graphics.Typeface
 
 /**
  * Renders a [DisplayList] onto an Android [Canvas].
  *
  * All em-unit coordinates are multiplied by [fontSize] (sp/px) to get screen coordinates.
  *
- * @param displayList  The layout output from [RaTeXEngine.parse].
- * @param fontSize     Font size in pixels. Matches the desired display size on screen.
+ * GlyphPath items are **placeholder rectangles** from Rust; glyphs must be drawn with
+ * KaTeX fonts. Pass [typefaceLoader] (e.g. [RaTeXFontLoader.getTypeface]) after loading
+ * fonts with [RaTeXFontLoader.loadFromAssets]. If null, glyphs are drawn as black rectangles.
+ *
+ * @param displayList   The layout output from [RaTeXEngine.parse].
+ * @param fontSize      Font size in pixels. Matches the desired display size on screen.
+ * @param typefaceLoader Optional (fontId: String) -> Typeface? for glyph rendering.
  */
 class RaTeXRenderer(
     val displayList: DisplayList,
     val fontSize: Float,
+    private val typefaceLoader: ((String) -> Typeface?)? = null,
 ) {
     // MARK: - Dimensions in pixels
 
@@ -31,10 +38,10 @@ class RaTeXRenderer(
     fun draw(canvas: Canvas) {
         for (item in displayList.items) {
             when (item) {
-                is DisplayItem.GlyphPath -> drawGlyph(canvas, item.data)
-                is DisplayItem.Line      -> drawLine(canvas, item.data)
-                is DisplayItem.Rect      -> drawRect(canvas, item.data)
-                is DisplayItem.Path      -> drawPath(canvas, item.data)
+                is DisplayItem.GlyphPath -> drawGlyph(canvas, item)
+                is DisplayItem.Line      -> drawLine(canvas, item)
+                is DisplayItem.Rect      -> drawRect(canvas, item)
+                is DisplayItem.Path      -> drawPath(canvas, item)
             }
         }
     }
@@ -66,19 +73,34 @@ class RaTeXRenderer(
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isAntiAlias = true }
 
-    private fun drawGlyph(canvas: Canvas, g: GlyphPathData) {
+    private fun drawGlyph(canvas: Canvas, g: DisplayItem.GlyphPath) {
         canvas.save()
         canvas.translate(g.x.em(), g.y.em())
-        canvas.scale(g.scale.toFloat(), g.scale.toFloat())
-        val path = buildAndroidPath(g.commands)
-        paint.style = Paint.Style.FILL
-        paint.applyColor(g.color)
-        canvas.drawPath(path, paint)
+        val typeface = typefaceLoader?.invoke(g.font)
+        if (typeface != null) {
+            // Draw actual character with KaTeX font (like iOS CoreText). Ignore placeholder path.
+            val codePoint = g.charCode.toInt()
+            val str = if (Character.isValidCodePoint(codePoint)) String(Character.toChars(codePoint)) else "?"
+            textPaint.typeface = typeface
+            textPaint.textSize = fontSize * g.scale.toFloat()
+            textPaint.color = g.color.toArgb()
+            textPaint.style = Paint.Style.FILL
+            // Canvas Y increases down; glyph y is baseline. drawText baseline is the y we pass.
+            canvas.drawText(str, 0f, 0f, textPaint)
+        } else {
+            // No font loaded — draw placeholder rectangle
+            canvas.scale(g.scale.toFloat(), g.scale.toFloat())
+            val path = buildAndroidPath(g.commands)
+            paint.style = Paint.Style.FILL
+            paint.applyColor(g.color)
+            canvas.drawPath(path, paint)
+        }
         canvas.restore()
     }
 
-    private fun drawLine(canvas: Canvas, l: LineData) {
+    private fun drawLine(canvas: Canvas, l: DisplayItem.Line) {
         val halfT = (l.thickness * fontSize / 2).toFloat()
         val left   = l.x.em()
         val top    = l.y.em() - halfT
@@ -89,7 +111,7 @@ class RaTeXRenderer(
         canvas.drawRect(left, top, right, bottom, paint)
     }
 
-    private fun drawRect(canvas: Canvas, r: RectData) {
+    private fun drawRect(canvas: Canvas, r: DisplayItem.Rect) {
         paint.style = Paint.Style.FILL
         paint.applyColor(r.color)
         canvas.drawRect(
@@ -98,7 +120,7 @@ class RaTeXRenderer(
             paint)
     }
 
-    private fun drawPath(canvas: Canvas, p: PathData) {
+    private fun drawPath(canvas: Canvas, p: DisplayItem.Path) {
         val path = buildAndroidPath(p.commands, p.x.em(), p.y.em())
         paint.applyColor(p.color)
         paint.style = if (p.fill) Paint.Style.FILL else Paint.Style.STROKE

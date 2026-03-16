@@ -1,0 +1,98 @@
+# 推送版本 tag（如 v0.0.4）时：构建 AAR、上传到 Sonatype Staging、自动 Close & Release 到 Maven Central、创建 GitHub Release 并附带 AAR。
+#
+# 仓库 Secrets：SONATYPE_NEXUS_USERNAME, SONATYPE_NEXUS_PASSWORD, GPG_PRIVATE_KEY, GPG_PASSPHRASE
+name: Release Android (Maven Central)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          server-id: sonatype
+          server-username: SONATYPE_NEXUS_USERNAME
+          server-password: SONATYPE_NEXUS_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+        env:
+          SONATYPE_NEXUS_USERNAME: ${{ secrets.SONATYPE_NEXUS_USERNAME }}
+          SONATYPE_NEXUS_PASSWORD: ${{ secrets.SONATYPE_NEXUS_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # 与 build-android.sh 中的目标一致（无 i686）
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r27
+
+      - name: Build Rust Android libraries
+        run: bash platforms/android/build-android.sh
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+
+      - name: Prepare Gradle properties
+        run: |
+          KEY_ID=$(gpg --list-secret-keys --keyid-format SHORT --with-colons | grep '^sec' | head -1 | cut -d: -f5)
+          cd demo/android
+          echo "libraryVersion=${{ steps.version.outputs.version }}" >> gradle.properties
+          echo "SONATYPE_NEXUS_USERNAME=${{ secrets.SONATYPE_NEXUS_USERNAME }}" >> gradle.properties
+          echo "SONATYPE_NEXUS_PASSWORD=${{ secrets.SONATYPE_NEXUS_PASSWORD }}" >> gradle.properties
+          echo "signing.gnupg.keyName=$KEY_ID" >> gradle.properties
+          echo "signing.gnupg.passphrase=${{ secrets.GPG_PASSPHRASE }}" >> gradle.properties
+
+      - name: Build AAR
+        run: |
+          cd demo/android
+          ./gradlew :ratex-android:assembleRelease --no-daemon
+
+      - name: Publish to Maven Central (staging + close & release)
+        run: |
+          cd demo/android
+          ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository --no-daemon
+
+      - name: Upload AAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ratex-android-aar
+          path: platforms/android/build/outputs/aar/*.aar
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: platforms/android/build/outputs/aar/*.aar
+          generate_release_notes: true

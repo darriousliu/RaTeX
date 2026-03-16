@@ -92,14 +92,28 @@ class RaTeXView @JvmOverloads constructor(
 
     private fun rerender() {
         renderJob?.cancel()
+        if (latex.isBlank()) {
+            renderer = null
+            requestLayout()
+            invalidate()
+            return
+        }
         renderJob = scope.launch {
             try {
                 val dl = RaTeXEngine.parse(latex)
-                renderer = RaTeXRenderer(dl, fontSize)
-                requestLayout()
-                invalidate()
+                renderer = RaTeXRenderer(dl, fontSize) { RaTeXFontLoader.getTypeface(it) }
+                post {
+                    requestLayout()
+                    invalidate()
+                }
             } catch (e: RaTeXException) {
+                renderer = null
+                post { requestLayout(); invalidate() }
                 onError?.invoke(e)
+            } catch (e: Throwable) {
+                renderer = null
+                post { requestLayout(); invalidate() }
+                onError?.invoke(RaTeXException(e.message ?: "unknown error"))
             }
         }
     }
