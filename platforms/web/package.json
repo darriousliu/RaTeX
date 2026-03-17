@@ -1,16 +1,31 @@
 {
   "name": "ratex-wasm",
-  "version": "0.0.8",
+  "version": "0.0.10",
   "description": "RaTeX browser integration: WASM + Canvas 2D web-render",
   "type": "module",
-  "repository": { "type": "git", "url": "https://github.com/erweixin/RaTeX.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erweixin/RaTeX.git"
+  },
   "homepage": "https://github.com/erweixin/RaTeX/tree/main/platforms/web#readme",
-  "keywords": ["latex", "math", "wasm", "katex", "render"],
+  "keywords": [
+    "latex",
+    "math",
+    "wasm",
+    "katex",
+    "render"
+  ],
   "license": "MIT",
   "exports": {
-    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
     "./fonts.css": "./fonts.css",
-    "./ratex-formula": { "import": "./dist/ratex-formula.js", "types": "./dist/ratex-formula.d.ts" }
+    "./ratex-formula": {
+      "import": "./dist/ratex-formula.js",
+      "types": "./dist/ratex-formula.d.ts"
+    }
   },
   "scripts": {
     "build": "npm run copy-fonts && npm run build:wasm && npm run build:ts",
