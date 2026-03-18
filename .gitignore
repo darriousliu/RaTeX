@@ -1,5 +1,7 @@
 /target
 Cargo.lock
+# Machine-specific Cargo cross-compilation config (use env vars instead)
+/.cargo/
 *.pdb
 node_modules/
 venv
@@ -34,6 +36,12 @@ platforms/android/src/main/jniLibs/
 platforms/ios/RaTeX.xcframework/
 # Flutter 插件内的副本由 CI 在发布前从上面复制，也不纳入版本控制
 platforms/flutter/ios/RaTeX.xcframework/
+
+# React Native — build caches (binaries are tracked for npm publishing)
+platforms/react-native/android/build/
+platforms/react-native/android/.cxx/
+platforms/react-native/ios/build/
+platforms/react-native/ios/Pods/
 
 # macOS
 .DS_Store

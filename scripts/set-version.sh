@@ -38,4 +38,12 @@ j.version = '$VER';
 fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
 "
 
+node -e "
+const fs = require('fs');
+const p = 'platforms/react-native/package.json';
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+j.version = '$VER';
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+"
+
 echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/web/package.json"
