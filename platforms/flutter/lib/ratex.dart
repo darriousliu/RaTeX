@@ -8,6 +8,7 @@
 //     fontSize: 24,
 //   );
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'src/display_list.dart';
@@ -35,6 +36,10 @@ class RaTeXEngine {
   /// ```
   DisplayList parseAndLayout(String latex) => _ffi.parseAndLayout(latex);
 }
+
+// Top-level function required by compute() — must not be a closure or instance method.
+DisplayList _parseAndLayoutInIsolate(String latex) =>
+    RaTeXEngine.instance.parseAndLayout(latex);
 
 // MARK: - Stateful widget
 
@@ -89,9 +94,9 @@ class _RaTeXWidgetState extends State<RaTeXWidget> {
     }
   }
 
-  void _render(String latex) {
+  Future<void> _render(String latex) async {
     try {
-      final dl = RaTeXEngine.instance.parseAndLayout(latex);
+      final dl = await compute(_parseAndLayoutInIsolate, latex);
       if (mounted) setState(() { _displayList = dl; _error = null; });
     } on RaTeXException catch (e) {
       widget.onError?.call(e);

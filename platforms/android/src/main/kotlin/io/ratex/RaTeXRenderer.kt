@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path as AndroidPath
 import android.graphics.Typeface
+import android.util.Log
 
 /**
  * Renders a [DisplayList] onto an Android [Canvas].
@@ -77,10 +78,14 @@ class RaTeXRenderer(
 
     private fun drawGlyph(canvas: Canvas, g: DisplayItem.GlyphPath) {
         val typeface = typefaceLoader?.invoke(g.font) ?: return
+        val codePoint = g.charCode.toInt()
+        if (!Character.isValidCodePoint(codePoint)) {
+            Log.w("RaTeXRenderer", "Invalid Unicode code point: $codePoint (0x${codePoint.toString(16)}) in font '${g.font}' — skipping glyph")
+            return
+        }
         canvas.save()
         canvas.translate(g.x.em(), g.y.em())
-        val codePoint = g.charCode.toInt()
-        val str = if (Character.isValidCodePoint(codePoint)) String(Character.toChars(codePoint)) else "?"
+        val str = String(Character.toChars(codePoint))
         textPaint.typeface = typeface
         textPaint.textSize = fontSize * g.scale.toFloat()
         textPaint.color = g.color.toArgb()

@@ -34,7 +34,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
 
-val libraryVersion = project.findProperty("libraryVersion")?.toString() ?: "0.0.3"
+val libraryVersion = project.findProperty("libraryVersion")?.toString() ?: "0.0.10"
 
 mavenPublishing {
     publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
