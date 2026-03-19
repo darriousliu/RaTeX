@@ -101,7 +101,7 @@ NSLayoutConstraint.activate([
 ])
 ```
 
-### SwiftUI
+### SwiftUI — block formula
 
 ```swift
 import RaTeX
@@ -116,6 +116,38 @@ struct ContentView: View {
     }
 }
 ```
+
+### SwiftUI — inline formula (mixed text + LaTeX)
+
+For inline rendering, use a custom `FlowLayout` (a SwiftUI `Layout`) that places `Text` and `RaTeXFormula` children side-by-side with automatic line wrapping. Baseline alignment uses the library-provided `RaTeXFormulaAscentKey` layout value, which `RaTeXFormula` exposes from the first frame — no two-pass measurement needed.
+
+```swift
+import RaTeX
+
+struct InlineExample: View {
+    private let fs: CGFloat = 17
+
+    var body: some View {
+        FlowLayout(horizontalSpacing: 3, lineSpacing: 6) {
+            Text("由勾股定理")
+            RaTeXFormula(latex: #"a^2 + b^2 = c^2"#, fontSize: fs, onError: { _ in })
+            Text("可直接求得斜边长度。")
+        }
+    }
+}
+
+// FlowLayout: wrap children horizontally, align baselines.
+// Reads RaTeXFormulaAscentKey for formula baseline; falls back to
+// firstTextBaseline for Text views.
+struct FlowLayout: Layout {
+    var horizontalSpacing: CGFloat = 4
+    var lineSpacing: CGFloat = 6
+
+    // ... see demo/ios for the full implementation
+}
+```
+
+`RaTeXFormulaAscentKey` is a `LayoutValueKey<CGFloat>` built into the library. It carries the formula's ascent (distance from baseline to top) so that `FlowLayout` can align mixed children without manual offset calculation.
 
 ### Low-level (custom drawing)
 

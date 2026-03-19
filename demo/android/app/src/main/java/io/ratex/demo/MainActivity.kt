@@ -98,8 +98,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val density = resources.displayMetrics.scaledDensity
-        var fontSizePx = fontSizeDp * density
+        var currentFontSizeDp = fontSizeDp
 
         val customLatex = findViewById<android.widget.EditText>(R.id.customLatex)
         val fontSizeLabel = findViewById<TextView>(R.id.fontSizeLabel)
@@ -114,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         customMathView.onError = { e: RaTeXException ->
             Toast.makeText(this, e.message, Toast.LENGTH_SHORT).show()
         }
-        customMathView.fontSize = fontSizePx
+        customMathView.fontSize = currentFontSizeDp
         customMathView.latex = customLatex.text.toString()
 
         customLatex.addTextChangedListener(object : TextWatcher {
@@ -128,8 +127,8 @@ class MainActivity : AppCompatActivity() {
         fontSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 updateFontSizeLabel(fontSizeLabel, progress)
-                fontSizePx = progress * density
-                customMathView.fontSize = fontSizePx
+                currentFontSizeDp = progress.toFloat()
+                customMathView.fontSize = currentFontSizeDp
                 customMathView.latex = customLatex.text.toString()
             }
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
@@ -139,18 +138,18 @@ class MainActivity : AppCompatActivity() {
         // ── 独立公式示例 ──────────────────────────────────────────────────
         for ((name, latex) in formulas) {
             formulaExamplesContainer.addView(makeSectionLabel(name))
-            formulaExamplesContainer.addView(makeMathView(latex, fontSizeDp * density))
+            formulaExamplesContainer.addView(makeMathView(latex, fontSizeDp))
         }
 
         // ── 行内混排（公式作为 Span 嵌入 TextView） ───────────────────────
         for ((prefix, latex, suffix) in inlineFormulas) {
-            addInlineRow(inlineMixContainer, prefix, latex, suffix, fontSizeDp * density)
+            addInlineRow(inlineMixContainer, prefix, latex, suffix, fontSizeDp)
         }
 
         // ── 多行公式混排 ──────────────────────────────────────────────────
         for ((description, latex) in multilineFormulas) {
             multilineMixContainer.addView(makeDescriptionLabel(description))
-            multilineMixContainer.addView(makeCenteredMathView(latex, fontSizeDp * density))
+            multilineMixContainer.addView(makeCenteredMathView(latex, fontSizeDp))
             multilineMixContainer.addView(makeDivider())
         }
     }

@@ -100,6 +100,54 @@ final painter = RaTeXPainter(displayList: dl, fontSize: 24);
 CustomPaint(painter: painter, size: Size(painter.widthPx, painter.totalHeightPx))
 ```
 
+### Inline formula (mixed text + LaTeX)
+
+Flutter's `RichText` + `WidgetSpan` is the recommended approach for mixing plain text with inline formulas. Use `PlaceholderAlignment.middle` for vertical centering:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:ratex_flutter/ratex_flutter.dart';
+
+/// Parses [text] with `$...$` inline math markers and returns a [RichText]
+/// that intermixes plain [TextSpan]s with [WidgetSpan]s.
+Widget buildInlineMath(String text, {double mathFontSize = 18, TextStyle? textStyle}) {
+  final style = textStyle ??
+      const TextStyle(fontSize: 16, height: 1.8, color: Colors.black87);
+
+  final parts = text.split(r'$');
+  final spans = <InlineSpan>[];
+
+  for (int i = 0; i < parts.length; i++) {
+    if (parts[i].isEmpty) continue;
+    if (i.isEven) {
+      // Plain text
+      spans.add(TextSpan(text: parts[i], style: style));
+    } else {
+      // Inline math
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        baseline: TextBaseline.alphabetic,
+        child: RaTeXWidget(
+          latex: parts[i],
+          fontSize: mathFontSize,
+          onError: (e) => debugPrint('RaTeX inline error: $e'),
+          loading: const SizedBox.shrink(),
+        ),
+      ));
+    }
+  }
+
+  return RichText(text: TextSpan(children: spans));
+}
+
+// Usage:
+buildInlineMath(
+  r'质能等价关系 $E = mc^2$，其中光速 $c \approx 3\times10^8\ \text{m/s}$。',
+)
+```
+
+Use `$...$` as delimiters inside the string. The `$` character is split on, so odd-indexed parts are LaTeX, even-indexed are plain text.
+
 ### Async (large formulas)
 
 ```dart

@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
  *
  * Usage (inside a coroutine):
  * ```kotlin
- * val span = RaTeXSpan.create(context, latex = """\frac{1}{2}""", fontSize = 48f)
+ * val span = RaTeXSpan.create(context, latex = """\frac{1}{2}""", fontSize = 18f)
  * val ssb = SpannableStringBuilder("Area = \u200B of the circle")
  * ssb.setSpan(span, 7, 8, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
  * textView.text = ssb
@@ -36,21 +36,22 @@ class RaTeXSpan private constructor(
 
     companion object {
         /**
-         * Renders [latex] at [fontSize] pixels and returns a ready-to-use [RaTeXSpan].
+         * Renders [latex] at [fontSize] dp and returns a ready-to-use [RaTeXSpan].
          *
          * Font loading and rendering run on [Dispatchers.IO]. Call from a coroutine or
          * `suspend` function; the result is delivered on the caller's dispatcher.
          *
          * @param context  Any context; used only for asset access during font loading.
          * @param latex    LaTeX math-mode string (no surrounding `$` or `\[…\]`).
-         * @param fontSize Font size in **pixels**.
+         * @param fontSize Font size in **dp** (density-independent pixels). Converted to px internally.
          * @throws RaTeXException if the formula cannot be parsed.
          */
         suspend fun create(context: Context, latex: String, fontSize: Float): RaTeXSpan =
             withContext(Dispatchers.IO) {
                 RaTeXFontLoader.ensureLoaded(context)
                 val dl = RaTeXEngine.parse(latex)
-                val renderer = RaTeXRenderer(dl, fontSize) { RaTeXFontLoader.getTypeface(it) }
+                val fontSizePx = fontSize * context.resources.displayMetrics.density
+                val renderer = RaTeXRenderer(dl, fontSizePx) { RaTeXFontLoader.getTypeface(it) }
 
                 val w = renderer.widthPx.toInt().coerceAtLeast(1)
                 val h = renderer.totalHeightPx.toInt().coerceAtLeast(1)

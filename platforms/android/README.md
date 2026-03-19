@@ -9,7 +9,7 @@ minSdk 21, targetSdk 34.
 2. **Use** — Add `RaTeXView` in your layout and set LaTeX in code; fonts load automatically from `assets/fonts/` on first render.
    ```kotlin
    binding.mathView.latex = """\frac{-b \pm \sqrt{b^2-4ac}}{2a}"""
-   binding.mathView.fontSize = 24f * resources.displayMetrics.scaledDensity
+   binding.mathView.fontSize = 24f   // dp — no manual density conversion needed
    ```
    **Optional:** To preload fonts at startup, call `RaTeXFontLoader.loadFromAssets(context, "fonts")` in your Application or first screen.
 
@@ -34,6 +34,8 @@ AAR has KaTeX in `assets/fonts/`. **RaTeXView** loads them automatically on firs
 
 ## Usage
 
+### Block formula — `RaTeXView`
+
 ```xml
 <io.ratex.RaTeXView android:id="@+id/mathView"
     android:layout_width="wrap_content" android:layout_height="wrap_content" />
@@ -41,10 +43,53 @@ AAR has KaTeX in `assets/fonts/`. **RaTeXView** loads them automatically on firs
 
 ```kotlin
 binding.mathView.latex = """\frac{-b \pm \sqrt{b^2-4ac}}{2a}"""
-binding.mathView.fontSize = 24f * resources.displayMetrics.scaledDensity
+binding.mathView.fontSize = 24f   // dp — no manual density conversion needed
 ```
 
-Compose: `RaTeXRenderer(dl, fontSize) { RaTeXFontLoader.getTypeface(it) }` and draw in `Canvas`.
+### Inline formula — `RaTeXSpan`
+
+`RaTeXSpan` is a `ReplacementSpan` that renders a LaTeX formula inline with surrounding text. The formula baseline is aligned to the text baseline, and the line height expands automatically to accommodate the formula.
+
+Rendering is async (uses `Dispatchers.IO` internally). Call `RaTeXSpan.create` from a coroutine:
+
+```kotlin
+private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+fun showInlineFormula(textView: TextView) {
+    scope.launch {
+        val span = RaTeXSpan.create(
+            context = this@MainActivity,
+            latex   = """\frac{1+\sqrt{5}}{2}""",
+            fontSize = 18f   // dp — converted to px internally
+        )
+        val ssb = SpannableStringBuilder("黄金比例 φ = ")
+        val start = ssb.length
+        ssb.append("\u200B")   // zero-width placeholder for the span
+        ssb.setSpan(span, start, ssb.length, 0)
+        ssb.append(" ≈ 1.618")
+        textView.text = ssb
+    }
+}
+```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `context` | `Context` | Used for asset access during font loading. |
+| `latex` | `String` | LaTeX math-mode string (no surrounding `$` or `\[…\]`). |
+| `fontSize` | `Float` | Font size in **dp** (density-independent pixels). Converted to px internally. |
+
+**Throws** `RaTeXException` if the formula cannot be parsed.
+
+### Low-level (Compose / custom drawing)
+
+```kotlin
+val dl       = RaTeXEngine.parse(latex)
+val renderer = RaTeXRenderer(dl, fontSize) { RaTeXFontLoader.getTypeface(it) }
+// draw into any Canvas:
+renderer.draw(canvas)
+```
 
 ## Publish
 

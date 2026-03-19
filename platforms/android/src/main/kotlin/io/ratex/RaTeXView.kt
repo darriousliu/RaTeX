@@ -28,8 +28,8 @@ import kotlinx.coroutines.withContext
  *
  * Kotlin usage:
  * ```kotlin
- * binding.mathView.latex   = """\frac{-b \pm \sqrt{b^2-4ac}}{2a}"""
- * binding.mathView.fontSize = 28f
+ * binding.mathView.latex    = """\frac{-b \pm \sqrt{b^2-4ac}}{2a}"""
+ * binding.mathView.fontSize = 28f   // dp — converted to px internally
  * ```
  */
 class RaTeXView @JvmOverloads constructor(
@@ -48,7 +48,7 @@ class RaTeXView @JvmOverloads constructor(
             rerender()
         }
 
-    /** Font size in pixels. Setting this triggers an async re-render. */
+    /** Font size in dp (density-independent pixels). Setting this triggers an async re-render. */
     var fontSize: Float = 24f
         set(value) {
             if (field == value) return
@@ -103,7 +103,8 @@ class RaTeXView @JvmOverloads constructor(
             try {
                 withContext(Dispatchers.IO) { RaTeXFontLoader.ensureLoaded(context) }
                 val dl = RaTeXEngine.parse(latex)
-                renderer = RaTeXRenderer(dl, fontSize) { RaTeXFontLoader.getTypeface(it) }
+                val fontSizePx = fontSize * context.resources.displayMetrics.density
+                renderer = RaTeXRenderer(dl, fontSizePx) { RaTeXFontLoader.getTypeface(it) }
                 post {
                     requestLayout()
                     invalidate()
