@@ -703,6 +703,22 @@ fn layout_supsub(
     sub: Option<&ParseNode>,
     options: &LayoutOptions,
 ) -> LayoutBox {
+    let horiz_brace_over = matches!(
+        base,
+        Some(ParseNode::HorizBrace {
+            is_over: true,
+            ..
+        })
+    );
+    let horiz_brace_under = matches!(
+        base,
+        Some(ParseNode::HorizBrace {
+            is_over: false,
+            ..
+        })
+    );
+    let center_scripts = horiz_brace_over || horiz_brace_under;
+
     let base_box = base
         .map(|b| layout_node(b, options))
         .unwrap_or_else(LayoutBox::new_empty);
@@ -787,6 +803,18 @@ fn layout_supsub(
             .max(sup_depth_scaled + 0.25 * metrics.x_height);
     }
 
+    // `\overbrace{…}^{…}` / `\underbrace{…}_{…}`: default sup_shift = height - sup_drop places
+    // the script baseline *inside* tall atoms (by design for single glyphs). For stretchy
+    // horizontal braces the label must sit above/below the ink with limit-style clearance.
+    if horiz_brace_over && sup_box.is_some() {
+        sup_shift += sup_style_metrics.sup_drop * sup_ratio;
+        sup_shift += metrics.big_op_spacing1 + 0.3;
+    }
+    if horiz_brace_under && sub_box.is_some() {
+        sub_shift += sub_style_metrics.sub_drop * sub_ratio;
+        sub_shift += metrics.big_op_spacing2 + 0.2;
+    }
+
     // Compute total dimensions (using scaled child dimensions)
     let mut height = base_box.height;
     let mut depth = base_box.depth;
@@ -794,11 +822,19 @@ fn layout_supsub(
 
     if let Some(ref sup_b) = sup_box {
         height = height.max(sup_shift + sup_height_scaled);
-        total_width = total_width.max(base_box.width + sup_b.width * sup_ratio);
+        if center_scripts {
+            total_width = total_width.max(sup_b.width * sup_ratio);
+        } else {
+            total_width = total_width.max(base_box.width + sup_b.width * sup_ratio);
+        }
     }
     if let Some(ref sub_b) = sub_box {
         depth = depth.max(sub_shift + sub_depth_scaled);
-        total_width = total_width.max(base_box.width + sub_b.width * sub_ratio);
+        if center_scripts {
+            total_width = total_width.max(sub_b.width * sub_ratio);
+        } else {
+            total_width = total_width.max(base_box.width + sub_b.width * sub_ratio);
+        }
     }
 
     LayoutBox {
@@ -813,6 +849,7 @@ fn layout_supsub(
             sub_shift,
             sup_scale: sup_ratio,
             sub_scale: sub_ratio,
+            center_scripts,
         },
         color: options.color,
     }
@@ -1839,7 +1876,7 @@ fn layout_delim_sizing(size: u8, delim: &str, options: &LayoutOptions) -> Layout
 #[allow(clippy::too_many_arguments)]
 fn layout_array(
     body: &[Vec<ParseNode>],
-    _cols: Option<&[ratex_parser::parse_node::AlignSpec]>,
+    cols: Option<&[ratex_parser::parse_node::AlignSpec]>,
     arraystretch: f64,
     add_jot: bool,
     row_gaps: &[Option<ratex_parser::parse_node::Measurement>],
@@ -1876,6 +1913,27 @@ fn layout_array(
     }
 
     let num_cols = body.iter().map(|r| r.len()).max().unwrap_or(0);
+
+    // Extract per-column alignment from cols spec (default to 'c').
+    let col_aligns: Vec<u8> = {
+        use ratex_parser::parse_node::AlignType;
+        let align_specs: Vec<&ratex_parser::parse_node::AlignSpec> = cols
+            .map(|cs| {
+                cs.iter()
+                    .filter(|s| matches!(s.align_type, AlignType::Align))
+                    .collect()
+            })
+            .unwrap_or_default();
+        (0..num_cols)
+            .map(|c| {
+                align_specs
+                    .get(c)
+                    .and_then(|s| s.align.as_deref())
+                    .and_then(|a| a.bytes().next())
+                    .unwrap_or(b'c')
+            })
+            .collect()
+    };
 
     // Layout all cells
     let mut cell_boxes: Vec<Vec<LayoutBox>> = Vec::with_capacity(num_rows);
@@ -1953,6 +2011,7 @@ fn layout_array(
         content: BoxContent::Array {
             cells: cell_boxes,
             col_widths: col_widths.clone(),
+            col_aligns,
             row_heights: row_heights.clone(),
             row_depths: row_depths.clone(),
             col_gap,
@@ -2200,8 +2259,25 @@ fn layout_raisebox(shift: f64, body: &ParseNode, options: &LayoutOptions) -> Lay
     }
 }
 
+/// Returns true if the parse node is a single character box (atom / mathord / textord),
+/// mirroring KaTeX's `isCharacterBox` + `getBaseElem` logic.
+fn is_single_char_body(node: &ParseNode) -> bool {
+    use ratex_parser::parse_node::ParseNode as PN;
+    match node {
+        // Unwrap single-element ord-groups and styling nodes.
+        PN::OrdGroup { body, .. } if body.len() == 1 => is_single_char_body(&body[0]),
+        PN::Styling { body, .. } if body.len() == 1 => is_single_char_body(&body[0]),
+        // Bare character nodes.
+        PN::Atom { .. } | PN::MathOrd { .. } | PN::TextOrd { .. } => true,
+        _ => false,
+    }
+}
+
 /// Layout \cancel, \bcancel, \xcancel, \sout — body with strike-through line(s) overlay.
-/// Line extends beyond content (like KaTeX/fixtures) and uses ~45° diagonal for \cancel/\bcancel.
+///
+/// Matches KaTeX `enclose.ts` + `stretchy.ts` geometry:
+///   • single char  → v_pad = 0.2em, h_pad = 0   (line corner-to-corner of w × (h+d+0.4) box)
+///   • multi char   → v_pad = 0,     h_pad = 0.2em (cancel-pad: line extends 0.2em each side)
 fn layout_cancel(
     label: &str,
     body: &ParseNode,
@@ -2212,60 +2288,55 @@ fn layout_cancel(
     let w = inner.width.max(0.01);
     let h = inner.height;
     let d = inner.depth;
-    // Extend stroke beyond content on both ends (match fixtures 0074, 0146)
-    let pad = 0.14_f64;
 
+    // KaTeX padding: single character gets vertical extension, multi-char gets horizontal.
+    let single = is_single_char_body(body);
+    let v_pad = if single { 0.2 } else { 0.0 };
+    let h_pad = if single { 0.0 } else { 0.2 };
+
+    // Path coordinates: y=0 at baseline, y<0 above (height), y>0 below (depth).
+    // \cancel  = "/" diagonal: bottom-left → top-right
+    // \bcancel = "\" diagonal: top-left → bottom-right
     let commands: Vec<PathCommand> = match label {
-        "\\cancel" => {
-            // Diagonal top-right to bottom-left (~45°), extended beyond box
-            vec![
-                PathCommand::MoveTo { x: -pad, y: d + pad },
-                PathCommand::LineTo { x: w + pad, y: -h - pad },
-            ]
-        }
-        "\\bcancel" => {
-            // Diagonal top-left to bottom-right (~45°), extended beyond box
-            vec![
-                PathCommand::MoveTo { x: w + pad, y: d + pad },
-                PathCommand::LineTo { x: -pad, y: -h - pad },
-            ]
-        }
-        "\\xcancel" => {
-            // Both diagonals, extended
-            vec![
-                PathCommand::MoveTo { x: -pad, y: d + pad },
-                PathCommand::LineTo { x: w + pad, y: -h - pad },
-                PathCommand::MoveTo { x: w + pad, y: d + pad },
-                PathCommand::LineTo { x: -pad, y: -h - pad },
-            ]
-        }
+        "\\cancel" => vec![
+            PathCommand::MoveTo { x: -h_pad,     y: d + v_pad  },  // bottom-left
+            PathCommand::LineTo { x: w + h_pad,  y: -h - v_pad },  // top-right
+        ],
+        "\\bcancel" => vec![
+            PathCommand::MoveTo { x: -h_pad,     y: -h - v_pad },  // top-left
+            PathCommand::LineTo { x: w + h_pad,  y: d + v_pad  },  // bottom-right
+        ],
+        "\\xcancel" => vec![
+            PathCommand::MoveTo { x: -h_pad,     y: d + v_pad  },
+            PathCommand::LineTo { x: w + h_pad,  y: -h - v_pad },
+            PathCommand::MoveTo { x: -h_pad,     y: -h - v_pad },
+            PathCommand::LineTo { x: w + h_pad,  y: d + v_pad  },
+        ],
         "\\sout" => {
-            // Horizontal line through vertical center, extended
-            let mid_y = (d - h) * 0.5_f64;
+            // Horizontal line at –0.5× x-height, extended to content edges.
+            let mid_y = -0.5 * options.metrics().x_height;
             vec![
-                PathCommand::MoveTo { x: -pad, y: mid_y },
-                PathCommand::LineTo { x: w + pad, y: mid_y },
+                PathCommand::MoveTo { x: 0.0, y: mid_y },
+                PathCommand::LineTo { x: w,   y: mid_y },
             ]
         }
         _ => vec![],
     };
 
-    let line_w = w + 2.0 * pad;
-    let line_h = h + pad;
-    let line_d = d + pad;
+    let line_w = w + 2.0 * h_pad;
+    let line_h = h + v_pad;
+    let line_d = d + v_pad;
     let line_box = LayoutBox {
         width: line_w,
         height: line_h,
         depth: line_d,
-        content: BoxContent::SvgPath {
-            commands,
-            fill: false,
-        },
+        content: BoxContent::SvgPath { commands, fill: false },
         color: options.color,
     };
 
-    // Draw line first (behind), then body on top. Line box is wider so stroke extends past content.
-    let body_shifted = make_hbox(vec![LayoutBox::new_kern(-line_w), inner]);
+    // For multi-char the body is inset by h_pad from the line-box's left edge.
+    let body_kern = -(line_w - h_pad);
+    let body_shifted = make_hbox(vec![LayoutBox::new_kern(body_kern), inner]);
     LayoutBox {
         width: w,
         height: h,
@@ -2276,58 +2347,67 @@ fn layout_cancel(
 }
 
 /// Layout \phase{body} — angle notation: body with a diagonal angle mark + underline.
-/// KaTeX SVG path: M400000 855 H0 L427.5 0 l65 45 L145 775 H400000z
+/// Matches KaTeX `enclose.ts` + `phasePath(y)` (steinmetz): dynamic viewBox height, `x = y/2` at the peak.
 fn layout_phase(body: &ParseNode, options: &LayoutOptions) -> LayoutBox {
     use crate::layout_box::BoxContent;
+    let metrics = options.metrics();
     let inner = layout_node(body, options);
-    // KaTeX: left padding = 0.4876em, height = 0.6444em, depth = 0.2108em
-    let left_pad = 0.4876_f64;
-    let total_h = 0.6444_f64;
-    let total_d = 0.2108_f64;
+    // KaTeX: lineWeight = 0.6pt, clearance = 0.35ex; angleHeight = inner.h + inner.d + both
+    let line_weight = 0.6_f64 / metrics.pt_per_em;
+    let clearance = 0.35_f64 * metrics.x_height;
+    let angle_height = inner.height + inner.depth + line_weight + clearance;
+    let left_pad = angle_height / 2.0 + line_weight;
     let width = inner.width + left_pad;
 
-    // Convert KaTeX SVG path (viewBox 400000x855) to em coords.
-    // SVG uses y-down; our coords: y=0 is baseline, positive=down, negative=up.
-    // Horizontal scale: total_width / 400 (SVG width is 400em)
-    // Vertical: y_svg=0 → -total_h, y_svg=855 → +total_d
-    //   scale_y = (total_h + total_d) / 855
-    let scale_x = width / 400.0;
-    let sy = (total_h + total_d) / 855.0;
-    let vy = |y_svg: f64| -> f64 { y_svg * sy - total_h };
+    // KaTeX: viewBoxHeight = floor(1000 * angleHeight * scale); base sizing uses scale → 1 here.
+    let y_svg = (1000.0 * angle_height).floor().max(80.0);
 
-    // Points from KaTeX path:
-    // M400000 855 = right-bottom
-    // H0 → (0, 855) = left-bottom
-    // L427.5 0 = (427.5, 0) = left-upper diagonal peak
-    // l65 45 = (492.5, 45) = slight right/down
-    // L145 775 = (145, 775) = return down-right
-    // H400000 = right at y=775
-    // z = close
+    // Vertical: viewBox height y_svg → angle_height em (baseline mapping below).
+    let sy = angle_height / y_svg;
+    // Horizontal: KaTeX SVG uses preserveAspectRatio xMinYMin slice — scale follows viewBox height,
+    // so x grows ~sy per SVG unit (not width/400000). That keeps the left angle visible; clip to `width`.
+    let sx = sy;
+    let right_x = (400_000.0_f64 * sx).min(width);
+
+    // Baseline: peak at svg y=0 → -inner.height; bottom at y=y_svg → inner.depth + line_weight + clearance
+    let bottom_y = inner.depth + line_weight + clearance;
+    let vy = |y_sv: f64| -> f64 { bottom_y - (y_svg - y_sv) * sy };
+
+    // phasePath(y): M400000 y H0 L y/2 0 l65 45 L145 y-80 H400000z
+    let x_peak = y_svg / 2.0;
     let commands = vec![
-        PathCommand::MoveTo { x: 400000.0 * scale_x, y: vy(855.0) },
-        PathCommand::LineTo { x: 0.0,              y: vy(855.0) },
-        PathCommand::LineTo { x: 427.5 * scale_x,  y: vy(0.0)   },
-        PathCommand::LineTo { x: 492.5 * scale_x,  y: vy(45.0)  },
-        PathCommand::LineTo { x: 145.0 * scale_x,  y: vy(775.0) },
-        PathCommand::LineTo { x: 400000.0 * scale_x, y: vy(775.0) },
+        PathCommand::MoveTo { x: right_x, y: vy(y_svg) },
+        PathCommand::LineTo { x: 0.0, y: vy(y_svg) },
+        PathCommand::LineTo { x: x_peak * sx, y: vy(0.0) },
+        PathCommand::LineTo { x: (x_peak + 65.0) * sx, y: vy(45.0) },
+        PathCommand::LineTo {
+            x: 145.0 * sx,
+            y: vy(y_svg - 80.0),
+        },
+        PathCommand::LineTo {
+            x: right_x,
+            y: vy(y_svg - 80.0),
+        },
         PathCommand::Close,
     ];
 
-    // Body is overlaid at x=left_pad from the left
     let body_shifted = make_hbox(vec![
         LayoutBox::new_kern(left_pad),
         inner.clone(),
     ]);
 
+    let path_height = inner.height;
+    let path_depth = bottom_y;
+
     LayoutBox {
         width,
-        height: total_h,
-        depth: total_d,
+        height: path_height,
+        depth: path_depth,
         content: BoxContent::HBox(vec![
             LayoutBox {
                 width,
-                height: total_h,
-                depth: total_d,
+                height: path_height,
+                depth: path_depth,
                 content: BoxContent::SvgPath { commands, fill: true },
                 color: options.color,
             },
@@ -2476,9 +2556,10 @@ fn layout_spacing_command(text: &str, options: &LayoutOptions) -> LayoutBox {
         "\\!" | "\\negthinspace" => -3.0 * mu,
         "\\negmedspace" => -4.0 * mu,
         "\\negthickspace" => -5.0 * mu,
-        "~" | "\\nobreakspace" | "\\ " | "\\space" => {
+        " " | "~" | "\\nobreakspace" | "\\ " | "\\space" => {
             // KaTeX renders these by placing the U+00A0 glyph (char 160) via mathsym.
             // Look up its width from MainRegular; fall back to 0.25em (the font-defined value).
+            // Literal space in `\text{ … }` becomes SpacingNode with text " ".
             get_char_metrics(FontId::MainRegular, 160)
                 .map(|m| m.width)
                 .unwrap_or(0.25)

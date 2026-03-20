@@ -275,9 +275,9 @@ impl<'a> MacroExpander<'a> {
             // ── delimiters / text (compose from existing) ──
             ("\\lBrace", "\\lbrace"),
             ("\\rBrace", "\\rbrace"),
-            ("\\llbracket", "\\lbrack\\lbrack"),
-            ("\\rrbracket", "\\rbrack\\rbrack"),
-            ("\\copyright", "\\text{\u{00A9}}"),
+            ("\\llbracket", "\\mathopen{[\\mkern-3.2mu[}"),
+            ("\\rrbracket", "\\mathclose{]\\mkern-3.2mu]}"),
+            ("\\copyright", "\\textcircled{c}"),
             ("\\textregistered", "\u{00AE}"),
 
             // ── dddot / ddddot ──

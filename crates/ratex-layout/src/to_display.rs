@@ -171,15 +171,31 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
             sub_shift,
             sup_scale: ss,
             sub_scale: bs,
+            center_scripts,
         } => {
-            emit_box(base, x, y, scale, items);
+            let base_x = if *center_scripts {
+                x + (lbox.width - base.width) * scale / 2.0
+            } else {
+                x
+            };
+            emit_box(base, base_x, y, scale, items);
             if let Some(sup_box) = sup {
                 let child_scale = scale * ss;
-                emit_box(sup_box, x + base.width * scale, y - sup_shift * scale, child_scale, items);
+                let sup_x = if *center_scripts {
+                    x + (lbox.width * scale - sup_box.width * child_scale) / 2.0
+                } else {
+                    base_x + base.width * scale
+                };
+                emit_box(sup_box, sup_x, y - sup_shift * scale, child_scale, items);
             }
             if let Some(sub_box) = sub {
                 let child_scale = scale * bs;
-                emit_box(sub_box, x + base.width * scale, y + sub_shift * scale, child_scale, items);
+                let sub_x = if *center_scripts {
+                    x + (lbox.width * scale - sub_box.width * child_scale) / 2.0
+                } else {
+                    base_x + base.width * scale
+                };
+                emit_box(sub_box, sub_x, y + sub_shift * scale, child_scale, items);
             }
         }
 
@@ -293,6 +309,7 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
         BoxContent::Array {
             cells,
             col_widths,
+            col_aligns,
             row_heights,
             row_depths,
             col_gap,
@@ -305,7 +322,12 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
                 let mut cur_x = x;
                 for (c, cell) in row.iter().enumerate() {
                     let cw = col_widths[c];
-                    let cell_x = cur_x + (cw - cell.width) * scale / 2.0;
+                    let align = col_aligns.get(c).copied().unwrap_or(b'c');
+                    let cell_x = match align {
+                        b'l' => cur_x,
+                        b'r' => cur_x + (cw - cell.width) * scale,
+                        _ => cur_x + (cw - cell.width) * scale / 2.0,
+                    };
                     emit_box(cell, cell_x, cur_y, scale, items);
                     cur_x += cw * scale;
                     if c + 1 < row.len() {

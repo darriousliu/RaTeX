@@ -61,6 +61,8 @@ pub enum BoxContent {
         sub_shift: f64,
         sup_scale: f64,
         sub_scale: f64,
+        /// When true, place scripts centered on the base width (e.g. `\overbrace` / `\underbrace`).
+        center_scripts: bool,
     },
 
     /// A radical (square root).
@@ -106,6 +108,8 @@ pub enum BoxContent {
     Array {
         cells: Vec<Vec<LayoutBox>>,
         col_widths: Vec<f64>,
+        /// Per-column alignment: b'l', b'c', or b'r'.
+        col_aligns: Vec<u8>,
         row_heights: Vec<f64>,
         row_depths: Vec<f64>,
         col_gap: f64,
