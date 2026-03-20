@@ -133,7 +133,7 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
                     return layout_op_with_limits(base_node, sup.as_deref(), sub.as_deref(), options);
                 }
             }
-            layout_supsub(base.as_deref(), sup.as_deref(), sub.as_deref(), options)
+            layout_supsub(base.as_deref(), sup.as_deref(), sub.as_deref(), options, None)
         }
 
         ParseNode::GenFrac {
@@ -699,7 +699,13 @@ fn layout_supsub(
     sup: Option<&ParseNode>,
     sub: Option<&ParseNode>,
     options: &LayoutOptions,
+    inherited_font: Option<FontId>,
 ) -> LayoutBox {
+    let layout_child = |n: &ParseNode, opts: &LayoutOptions| match inherited_font {
+        Some(fid) => layout_with_font(n, fid, opts),
+        None => layout_node(n, opts),
+    };
+
     let horiz_brace_over = matches!(
         base,
         Some(ParseNode::HorizBrace {
@@ -717,7 +723,7 @@ fn layout_supsub(
     let center_scripts = horiz_brace_over || horiz_brace_under;
 
     let base_box = base
-        .map(|b| layout_node(b, options))
+        .map(|b| layout_child(b, options))
         .unwrap_or_else(LayoutBox::new_empty);
 
     let is_char_box = base.is_some_and(is_character_box);
@@ -731,12 +737,12 @@ fn layout_supsub(
 
     let sup_box = sup.map(|s| {
         let sup_opts = options.with_style(sup_style);
-        layout_node(s, &sup_opts)
+        layout_child(s, &sup_opts)
     });
 
     let sub_box = sub.map(|s| {
         let sub_opts = options.with_style(sub_style);
-        layout_node(s, &sub_opts)
+        layout_child(s, &sub_opts)
     });
 
     let sup_height_scaled = sup_box.as_ref().map(|b| b.height * sup_ratio).unwrap_or(0.0);
@@ -1159,7 +1165,7 @@ fn layout_op_with_limits(
             suppress_base_shift.unwrap_or(false),
         ),
         ParseNode::OperatorName { body, .. } => (None, false, Some(body.as_slice()), false),
-        _ => return layout_supsub(Some(base_node), sup_node, sub_node, options),
+        _ => return layout_supsub(Some(base_node), sup_node, sub_node, options, None),
     };
 
     let (base_box, slant) = build_op_base(name, symbol, body, options);
@@ -2512,6 +2518,16 @@ fn layout_with_font(node: &ParseNode, font_id: FontId, options: &LayoutOptions) 
             let children: Vec<LayoutBox> = body.iter().map(|n| layout_with_font(n, font_id, options)).collect();
             make_hbox(children)
         }
+        ParseNode::SupSub {
+            base, sup, sub, ..
+        } => {
+            if let Some(base_node) = base.as_deref() {
+                if should_use_op_limits(base_node, options) {
+                    return layout_op_with_limits(base_node, sup.as_deref(), sub.as_deref(), options);
+                }
+            }
+            layout_supsub(base.as_deref(), sup.as_deref(), sub.as_deref(), options, Some(font_id))
+        }
         ParseNode::MathOrd { text, .. }
         | ParseNode::TextOrd { text, .. }
         | ParseNode::Atom { text, .. } => {
@@ -2690,6 +2706,8 @@ fn node_math_class(node: &ParseNode) -> Option<MathClass> {
         ParseNode::Lap { .. } => None,
         ParseNode::LeftRight { .. } => Some(MathClass::Inner),
         ParseNode::AccentToken { .. } => Some(MathClass::Ord),
+        // \xrightarrow etc. are mathrel in TeX/KaTeX; without this they collapse to Ord–Ord (no kern).
+        ParseNode::XArrow { .. } => Some(MathClass::Rel),
         _ => Some(MathClass::Ord),
     }
 }
