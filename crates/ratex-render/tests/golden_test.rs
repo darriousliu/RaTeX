@@ -119,6 +119,7 @@ fn resize_image(data: &[u8], w: u32, h: u32, channels: u32, target_h: u32) -> (V
 }
 
 /// Compute ink-based comparison score after crop+normalize.
+#[allow(clippy::too_many_arguments)]
 fn ink_compare(
     ref_data: &[u8], ref_w: u32, ref_h: u32, ref_ch: u32,
     test_data: &[u8], test_w: u32, test_h: u32, test_ch: u32,
@@ -169,6 +170,7 @@ fn run_golden_suite(
     tc_path: &std::path::Path,
     fixtures_dir: &std::path::Path,
     min_pass_rate: f64,
+    device_pixel_ratio: f32,
 ) {
     if !tc_path.exists() || !fixtures_dir.exists() {
         eprintln!("Skipping {label}: path missing");
@@ -176,7 +178,12 @@ fn run_golden_suite(
     }
 
     let font_dir = font_dir();
-    let render_opts = RenderOptions { font_size: 40.0, padding: 10.0, font_dir };
+    let render_opts = RenderOptions {
+        font_size: 40.0,
+        padding: 10.0,
+        font_dir,
+        device_pixel_ratio,
+    };
     let layout_opts = LayoutOptions::default();
 
     let lines: Vec<String> = std::fs::read_to_string(tc_path).unwrap()
@@ -246,6 +253,7 @@ fn golden_test_pass_rate() {
         &root.join("tests/golden/test_cases.txt"),
         &root.join("tests/golden/fixtures"),
         75.0,
+        1.0,
     );
 }
 
@@ -253,11 +261,13 @@ fn golden_test_pass_rate() {
 #[test]
 fn golden_mhchem_pass_rate() {
     let root = project_root();
+    // 2.0 matches legacy fixtures_ce (Puppeteer DPR 2); use 1.0 if refs were regenerated with DPR 1.
     run_golden_suite(
         "Golden (mhchem)",
         &root.join("tests/golden/test_case_ce.txt"),
         &root.join("tests/golden/fixtures_ce"),
         50.0,
+        2.0,
     );
 }
 
