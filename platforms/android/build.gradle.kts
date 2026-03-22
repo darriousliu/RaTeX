@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android") version "1.9.24"
@@ -34,7 +36,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
 
-val libraryVersion = project.findProperty("libraryVersion")?.toString() ?: "0.0.10"
+// CI（release-android.yml）传入 -PlibraryVersion；本地默认与根目录 VERSION 一致
+val libraryVersion = project.findProperty("libraryVersion")?.toString()?.takeIf { it.isNotBlank() }
+    ?: File(rootProject.rootDir, "../../VERSION").normalize().readText().trim()
 
 mavenPublishing {
     publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL, automaticRelease = true)
