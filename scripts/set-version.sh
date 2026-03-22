@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# 将根目录 VERSION 文件中的版本号同步到 Cargo.toml、pubspec.yaml、package.json。
+# 将根目录 VERSION 文件中的版本号同步到 Cargo.toml、pubspec.yaml、
+# platforms/web 与 platforms/react-native 的 package.json。
+# platforms/android（Maven Central）在未传 -PlibraryVersion 时从本文件读取版本，见 platforms/android/build.gradle.kts。
 # 用法: ./scripts/set-version.sh [版本号]
 # 若省略版本号，则使用 VERSION 文件内容。
 
@@ -29,21 +31,14 @@ sed -e '/^[[:space:]]*version = "/s/version = "[^"]*"/version = "'"$VER"'"/' \
 # Flutter pubspec
 sed "s/^version: .*/version: $VER/" platforms/flutter/pubspec.yaml > platforms/flutter/pubspec.yaml.tmp && mv platforms/flutter/pubspec.yaml.tmp platforms/flutter/pubspec.yaml
 
-# npm package (ratex-wasm)
+# npm：Web（ratex-wasm）与 React Native
 node -e "
 const fs = require('fs');
-const p = 'platforms/web/package.json';
-const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-j.version = '$VER';
-fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+for (const p of ['platforms/web/package.json', 'platforms/react-native/package.json']) {
+  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+  j.version = '$VER';
+  fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+}
 "
 
-node -e "
-const fs = require('fs');
-const p = 'platforms/react-native/package.json';
-const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-j.version = '$VER';
-fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
-"
-
-echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/web/package.json"
+echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/web/package.json, platforms/react-native/package.json; Android Maven 使用根目录 VERSION"
