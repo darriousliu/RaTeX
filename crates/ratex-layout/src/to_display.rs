@@ -178,6 +178,7 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
             sup_scale: ss,
             sub_scale: bs,
             center_scripts,
+            italic_correction,
         } => {
             let base_x = if *center_scripts {
                 x + (lbox.width - base.width) * scale / 2.0
@@ -190,7 +191,7 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
                 let sup_x = if *center_scripts {
                     x + (lbox.width * scale - sup_box.width * child_scale) / 2.0
                 } else {
-                    base_x + base.width * scale
+                    base_x + (base.width + italic_correction) * scale
                 };
                 emit_box(sup_box, sup_x, y - sup_shift * scale, child_scale, items);
             }

@@ -863,6 +863,15 @@ fn layout_supsub(
         sub_shift += metrics.big_op_spacing2 + 0.2;
     }
 
+    // Italic correction: KaTeX adds margin-right = italic to italic math characters,
+    // so superscripts start at advance_width + italic_correction.
+    // Only apply to simple single-glyph bases (not complex sub-expressions).
+    let italic_correction = if is_char_box && !center_scripts {
+        glyph_italic(&base_box)
+    } else {
+        0.0
+    };
+
     // Compute total dimensions (using scaled child dimensions)
     let mut height = base_box.height;
     let mut depth = base_box.depth;
@@ -873,7 +882,7 @@ fn layout_supsub(
         if center_scripts {
             total_width = total_width.max(sup_b.width * sup_ratio);
         } else {
-            total_width = total_width.max(base_box.width + sup_b.width * sup_ratio);
+            total_width = total_width.max(base_box.width + italic_correction + sup_b.width * sup_ratio);
         }
     }
     if let Some(ref sub_b) = sub_box {
@@ -898,6 +907,7 @@ fn layout_supsub(
             sup_scale: sup_ratio,
             sub_scale: sub_ratio,
             center_scripts,
+            italic_correction,
         },
         color: options.color,
     }
@@ -1380,10 +1390,25 @@ fn layout_operatorname(body: &[ParseNode], options: &LayoutOptions) -> LayoutBox
 // Accent layout
 // ============================================================================
 
-/// `\vec` KaTeX SVG: nudge vs raster reference (e.g. golden `0922`) — slightly lower, slightly right.
-const VEC_CLEARANCE_PULL_DOWN_EM: f64 = 0.082;
+/// `\vec` KaTeX SVG: nudge slightly right to match KaTeX reference.
 const VEC_SKEW_EXTRA_RIGHT_EM: f64 = 0.018;
-const VEC_CLEARANCE_MIN_FLOOR_EM: f64 = 0.30;
+
+/// Extract the italic correction of the base glyph.
+/// Used by superscripts: KaTeX adds margin-right = italic_correction to italic math characters,
+/// so the superscript starts at advance_width + italic_correction (not just advance_width).
+fn glyph_italic(lb: &LayoutBox) -> f64 {
+    match &lb.content {
+        BoxContent::Glyph { font_id, char_code } => {
+            get_char_metrics(*font_id, *char_code)
+                .map(|m| m.italic)
+                .unwrap_or(0.0)
+        }
+        BoxContent::HBox(children) => {
+            children.last().map(glyph_italic).unwrap_or(0.0)
+        }
+        _ => 0.0,
+    }
+}
 
 /// Extract the skew (italic correction) of the innermost/last glyph in a box.
 /// Used by shifty accents (\hat, \tilde…) to horizontally centre the mark
@@ -1437,15 +1462,17 @@ fn layout_accent(
         let clearance = if is_below {
             body_box.height + body_box.depth + gap
         } else if label == "\\vec" {
-            (body_box.height.min(options.metrics().x_height) - VEC_CLEARANCE_PULL_DOWN_EM)
-                .max(VEC_CLEARANCE_MIN_FLOOR_EM)
+            // KaTeX: clearance = min(body.height, xHeight) is used as *overlap* (kern down).
+            // Equivalent RaTeX position: vec bottom = body.height - overlap = max(0, body.height - xHeight).
+            (body_box.height - options.metrics().x_height).max(0.0)
         } else {
             body_box.height + gap
         };
         let (height, depth) = if is_below {
             (body_box.height, body_box.depth + h + gap)
         } else if label == "\\vec" {
-            (body_box.height + h, body_box.depth)
+            // Box height = clearance + H_EM, matching KaTeX VList height.
+            (clearance + h, body_box.depth)
         } else {
             (body_box.height + gap + h, body_box.depth)
         };
@@ -1570,8 +1597,26 @@ fn layout_accent(
         //   a small ε (0.07em ≈ 3px) so the marks don't pixel-overlap in the rasterizer.
         //   This is equivalent to KaTeX's min(body.height, xHeight) approach.
         let base_clearance = match &body_box.content {
-            BoxContent::Accent { clearance: inner_cl, is_below, .. } if !is_below => {
-                inner_cl + 0.3
+            BoxContent::Accent { clearance: inner_cl, is_below, accent: inner_accent, .. }
+                if !is_below =>
+            {
+                // For SVG accents (height≈0, e.g. \vec): body_box.height = clearance + H_EM,
+                // which matches KaTeX's body.height. Use min(body.height, xHeight) exactly as
+                // KaTeX does: clearance = min(body.height, xHeight).
+                // For glyph accents the 0.35 rendering shift is baked into body_box.height,
+                // so we use inner_cl + 0.3 to avoid double-counting that correction.
+                if inner_accent.height <= 0.001 {
+                    // For SVG accents like \vec: KaTeX places the outer glyph accent with
+                    // its baseline at body.height - min(body.height, xHeight) above formula
+                    // baseline, i.e. max(0, body.height - xHeight).
+                    // to_display.rs shifts the glyph DOWN by (accent_h - 0.35.min(accent_h))
+                    // so we pre-add that correction to land at the right position.
+                    let katex_pos = (body_box.height - options.metrics().x_height).max(0.0);
+                    let correction = (accent_box.height - 0.35_f64.min(accent_box.height)).max(0.0);
+                    katex_pos + correction
+                } else {
+                    inner_cl + 0.3
+                }
             }
             _ => body_box.height,
         };
@@ -1723,7 +1768,9 @@ fn left_right_delim_total_height(inner: &LayoutBox, options: &LayoutOptions) -> 
     let max_dist = (inner_height - axis).max(inner_depth + axis);
     let delim_factor = 901.0;
     let delim_extend = 5.0 / metrics.pt_per_em;
-    (max_dist / 500.0 * delim_factor).max(2.0 * max_dist - delim_extend)
+    let from_formula = (max_dist / 500.0 * delim_factor).max(2.0 * max_dist - delim_extend);
+    // Ensure delimiter is at least as tall as inner content
+    from_formula.max(inner_height + inner_depth)
 }
 
 fn layout_left_right(

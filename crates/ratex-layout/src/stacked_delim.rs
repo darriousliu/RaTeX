@@ -190,6 +190,22 @@ fn width_em_for_label(label: &str) -> f64 {
     }
 }
 
+fn shift_path_y(cmds: Vec<PathCommand>, dy: f64) -> Vec<PathCommand> {
+    cmds.into_iter()
+        .map(|c| match c {
+            PathCommand::MoveTo { x, y } => PathCommand::MoveTo { x, y: y + dy },
+            PathCommand::LineTo { x, y } => PathCommand::LineTo { x, y: y + dy },
+            PathCommand::CubicTo { x1, y1, x2, y2, x, y } => PathCommand::CubicTo {
+                x1, y1: y1 + dy, x2, y2: y2 + dy, x, y: y + dy,
+            },
+            PathCommand::QuadTo { x1, y1, x, y } => PathCommand::QuadTo {
+                x1, y1: y1 + dy, x, y: y + dy,
+            },
+            PathCommand::Close => PathCommand::Close,
+        })
+        .collect()
+}
+
 fn scale_path_to_em(cmds: &[PathCommand]) -> Vec<PathCommand> {
     let s = 0.001;
     cmds.iter()
@@ -257,7 +273,13 @@ fn make_tall_svg_delim(kind: StackDelimKind, height_total: f64, options: &Layout
     if raw.is_empty() {
         return None;
     }
-    let cmds = scale_path_to_em(&raw);
+    // The KaTeX SVG paths use a top-origin coordinate system (y=0 at top, y=height_total
+    // at bottom).  RaTeX places SvgPath items at the box baseline, so y=0 maps to the
+    // baseline and positive y extends downward.  Shift every y by -height_total so the
+    // path spans [-height_total, 0] (above baseline to baseline), matching the declared
+    // LayoutBox dimensions (height=height_total, depth=0).
+    let cmds_raw = scale_path_to_em(&raw);
+    let cmds = shift_path_y(cmds_raw, -height_total);
     let w = width_em_for_label(label);
     let inner = LayoutBox {
         width: w,

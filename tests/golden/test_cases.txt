@@ -922,3 +922,20 @@ a+\left(\vcenter{\frac{\frac a b}c}\right)
 \left\{\begin{array}{l} \nabla\cdot\vec{D} = \rho \\ \nabla\cdot\vec{B} = 0 \\ \nabla\times\vec{E} = -\frac{\partial\vec{B}}{\partial t} \\ \nabla\times\vec{H} = \vec{J}_f + \frac{\partial\vec{D}}{\partial t} \end{array}\right.
 酸 + 碱 \rightarrow 盐 + 水
 \sqrt{}
+\begin{pmatrix} a_{11} & a_{12} & a_{13} \\ a_{21} & a_{22} & a_{23} \\ a_{31} & a_{32} & a_{33} \end{pmatrix}
+\begin{vmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{vmatrix}
+\begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & 1 \end{bmatrix}
+\begin{pmatrix} \cos\theta & -\sin\theta & 0 \\ \sin\theta & \cos\theta & 0 \\ 0 & 0 & 1 \end{pmatrix}
+\begin{pmatrix} 1 & 0 & \cdots & 0 \\ 0 & 1 & \cdots & 0 \\ \vdots & \vdots & \ddots & \vdots \\ 0 & 0 & \cdots & 1 \end{pmatrix}
+\begin{bmatrix} A & B \\ C & D \end{bmatrix}\begin{bmatrix} x \\ y \end{bmatrix} = \begin{bmatrix} 0 \\ 0 \end{bmatrix}
+\begin{Bmatrix} a & b & c \\ d & e & f \\ g & h & i \end{Bmatrix}
+\mathring{A}
+\hat{\hat{x}}
+\dot{\vec{p}} = -\nabla V
+\widehat{XY + Z}
+\widetilde{f \circ g}
+\ddot{\vec{r}}
+R^{\mu}{}_{{\nu\rho\sigma}}
+T^{\mu\nu}{}_{\rho} = g^{\mu\alpha}g^{\nu\beta}T_{\alpha\beta\rho}
+\Gamma^{\mu}_{\nu\rho} = \tfrac{1}{2}g^{\mu\sigma}\!\left(\partial_\nu g_{\rho\sigma}+\partial_\rho g_{\nu\sigma}-\partial_\sigma g_{\nu\rho}\right)
+\nabla_\mu T^{\mu\nu} = 0

@@ -264,7 +264,9 @@ fn left_right_bars() {
 
 #[test]
 fn left_right_sum() {
-    check("\\left( \\sum_{i=1}^{n} x_i \\right)", 1.75, 1.3577);
+    // RaTeX clamps `\left`/`\right` height to `inner_height + inner_depth` after the
+    // TeX formula; KaTeX 0.16.38 `makeLeftRightDelim` does not, so this differs from HTML parity.
+    check("\\left( \\sum_{i=1}^{n} x_i \\right)", 1.79453, 1.3577);
 }
 
 // ============================================================================
