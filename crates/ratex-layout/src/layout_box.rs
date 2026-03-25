@@ -66,6 +66,9 @@ pub enum BoxContent {
         sub_scale: f64,
         /// When true, place scripts centered on the base width (e.g. `\overbrace` / `\underbrace`).
         center_scripts: bool,
+        /// Italic correction of the base character (em). Superscript x is offset by this amount
+        /// beyond base.width, matching KaTeX's margin-right on italic math symbols.
+        italic_correction: f64,
     },
 
     /// A radical (square root).
