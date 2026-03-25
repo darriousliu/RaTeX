@@ -2855,7 +2855,7 @@ fn node_math_class(node: &ParseNode) -> Option<MathClass> {
     match node {
         ParseNode::MathOrd { .. } | ParseNode::TextOrd { .. } => Some(MathClass::Ord),
         ParseNode::Atom { family, .. } => Some(family_to_math_class(*family)),
-        ParseNode::OpToken { .. } | ParseNode::Op { .. } => Some(MathClass::Op),
+        ParseNode::OpToken { .. } | ParseNode::Op { .. } | ParseNode::OperatorName { .. } => Some(MathClass::Op),
         ParseNode::OrdGroup { .. } => Some(MathClass::Ord),
         ParseNode::GenFrac { .. } => Some(MathClass::Inner),
         ParseNode::Sqrt { .. } => Some(MathClass::Ord),
