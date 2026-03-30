@@ -478,8 +478,11 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
         }
 
         ParseNode::HorizBrace {
-            base, is_over, ..
-        } => layout_horiz_brace(base, *is_over, options),
+            base,
+            is_over,
+            label,
+            ..
+        } => layout_horiz_brace(base, *is_over, label, options),
 
         ParseNode::XArrow {
             label, body, below, ..
@@ -2961,28 +2964,48 @@ fn family_to_math_class(family: AtomFamily) -> MathClass {
 fn layout_horiz_brace(
     base: &ParseNode,
     is_over: bool,
+    func_label: &str,
     options: &LayoutOptions,
 ) -> LayoutBox {
     let body_box = layout_node(base, options);
     let w = body_box.width.max(0.5);
 
-    let label = if is_over { "overbrace" } else { "underbrace" };
-    // KaTeXSize4 brace glyphs are closed contours meant for fill (like stretchy arrows).
-    // fill=false strokes outlines → hollow “wireframe” and exaggerated bar ends.
-    let (raw_commands, brace_h, brace_fill) =
-        match crate::katex_svg::katex_stretchy_path(label, w) {
+    let is_bracket = func_label
+        .trim_start_matches('\\')
+        .ends_with("bracket");
+
+    // mathtools-style `\overbracket` / `\underbracket`: square bracket stroke (no KaTeX glyph).
+    let leg = 0.12_f64;
+    let (raw_commands, brace_h, brace_fill) = if is_bracket {
+        let cmds = if is_over {
+            horiz_overbracket_path(w, leg)
+        } else {
+            horiz_underbracket_path(w, leg)
+        };
+        (cmds, leg, false)
+    } else {
+        let stretch_key = if is_over { "overbrace" } else { "underbrace" };
+        // KaTeXSize4 brace glyphs are closed contours meant for fill (like stretchy arrows).
+        // fill=false strokes outlines → hollow “wireframe” and exaggerated bar ends.
+        match crate::katex_svg::katex_stretchy_path(stretch_key, w) {
             Some((c, h)) => (c, h, true),
             None => {
                 let h = 0.35_f64;
                 (horiz_brace_path(w, h, is_over), h, false)
             }
-        };
+        }
+    };
 
     // Shift y-coordinates: centered commands → positioned for over/under
     // For overbrace: foot at y=0 (bottom), peak goes up → shift by -brace_h/2
     // For underbrace: foot at y=0 (top), peak goes down → shift by +brace_h/2
-    let y_shift = if is_over { -brace_h / 2.0 } else { brace_h / 2.0 };
-    let commands = shift_path_y(raw_commands, y_shift);
+    // Bracket paths are already in accent-local coordinates (no shift).
+    let commands = if is_bracket {
+        raw_commands
+    } else {
+        let y_shift = if is_over { -brace_h / 2.0 } else { brace_h / 2.0 };
+        shift_path_y(raw_commands, y_shift)
+    };
 
     let brace_box = LayoutBox {
         width: w,
@@ -4034,6 +4057,28 @@ fn layout_cd(body: &[Vec<ParseNode>], options: &LayoutOptions) -> LayoutBox {
         },
         color: options.color,
     }
+}
+
+/// Horizontal square bracket under the body (mathtools `\underbracket`).
+/// Path in accent-local coords: baseline at the top bar (y=0); legs extend to y=+leg.
+fn horiz_underbracket_path(width: f64, leg: f64) -> Vec<PathCommand> {
+    vec![
+        PathCommand::MoveTo { x: 0.0, y: leg },
+        PathCommand::LineTo { x: 0.0, y: 0.0 },
+        PathCommand::LineTo { x: width, y: 0.0 },
+        PathCommand::LineTo { x: width, y: leg },
+    ]
+}
+
+/// Horizontal square bracket over the body (mathtools `\overbracket`).
+/// Path in accent-local coords: baseline at the bottom bar (y=0); legs extend to y=-leg.
+fn horiz_overbracket_path(width: f64, leg: f64) -> Vec<PathCommand> {
+    vec![
+        PathCommand::MoveTo { x: 0.0, y: -leg },
+        PathCommand::LineTo { x: 0.0, y: 0.0 },
+        PathCommand::LineTo { x: width, y: 0.0 },
+        PathCommand::LineTo { x: width, y: -leg },
+    ]
 }
 
 fn horiz_brace_path(width: f64, height: f64, is_over: bool) -> Vec<PathCommand> {
