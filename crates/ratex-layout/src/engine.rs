@@ -7,6 +7,7 @@ use ratex_types::path_command::PathCommand;
 use crate::hbox::make_hbox;
 use crate::layout_box::{BoxContent, LayoutBox};
 use crate::layout_options::LayoutOptions;
+
 use crate::spacing::{atom_spacing, mu_to_em, MathClass};
 use crate::stacked_delim::make_stacked_delim_if_needed;
 
@@ -323,18 +324,32 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
             hlines_before_row,
             col_separation_type,
             hskip_before_and_after,
+            is_cd,
             ..
-        } => layout_array(
-            body,
-            cols.as_deref(),
-            *arraystretch,
-            add_jot.unwrap_or(false),
-            row_gaps,
-            hlines_before_row,
-            col_separation_type.as_deref(),
-            hskip_before_and_after.unwrap_or(false),
-            options,
-        ),
+        } => {
+            if is_cd.unwrap_or(false) {
+                layout_cd(body, options)
+            } else {
+                layout_array(
+                    body,
+                    cols.as_deref(),
+                    *arraystretch,
+                    add_jot.unwrap_or(false),
+                    row_gaps,
+                    hlines_before_row,
+                    col_separation_type.as_deref(),
+                    hskip_before_and_after.unwrap_or(false),
+                    options,
+                )
+            }
+        }
+
+        ParseNode::CdArrow {
+            direction,
+            label_above,
+            label_below,
+            ..
+        } => layout_cd_arrow(direction, label_above.as_deref(), label_below.as_deref(), 0.0, 0.0, 0.0, options),
 
         ParseNode::Sizing { size, body, .. } => layout_sizing(*size, body, options),
 
@@ -1728,6 +1743,10 @@ fn node_contains_middle(node: &ParseNode) -> bool {
         ParseNode::XArrow { body, below, .. } => {
             node_contains_middle(body) || below.as_deref().is_some_and(node_contains_middle)
         }
+        ParseNode::CdArrow { label_above, label_below, .. } => {
+            label_above.as_deref().is_some_and(node_contains_middle)
+                || label_below.as_deref().is_some_and(node_contains_middle)
+        }
         ParseNode::MathChoice {
             display,
             text,
@@ -2893,6 +2912,8 @@ fn node_math_class(node: &ParseNode) -> Option<MathClass> {
         ParseNode::AccentToken { .. } => Some(MathClass::Ord),
         // \xrightarrow etc. are mathrel in TeX/KaTeX; without this they collapse to Ord–Ord (no kern).
         ParseNode::XArrow { .. } => Some(MathClass::Rel),
+        // CD arrows are structural; treat as Rel for spacing.
+        ParseNode::CdArrow { .. } => Some(MathClass::Rel),
         _ => Some(MathClass::Ord),
     }
 }
@@ -3501,6 +3522,517 @@ fn stretchy_accent_path(label: &str, width: f64, height: f64) -> Vec<PathCommand
                 PathCommand::LineTo { x: width - ah, y: mid_y + ah },
             ]
         }
+    }
+}
+
+// ============================================================================
+// CD (amscd commutative diagram) layout
+// ============================================================================
+
+/// Wrap a side label for a vertical CD arrow so it is vertically centered on the shaft.
+///
+/// The resulting box reports `height = box_h, depth = box_d` (same as the shaft) so it
+/// does not change the row's allocated height.  The label body is raised/lowered via
+/// `RaiseBox` so that the label's visual center aligns with the shaft's vertical center.
+///
+/// Derivation (screen coords, y+ downward):
+///   shaft center  = (box_d − box_h) / 2
+///   label center  = −shift − (label_h − label_d) / 2
+///   solving gives  shift = (box_h − box_d + label_d − label_h) / 2
+fn cd_vcenter_side_label(label: LayoutBox, box_h: f64, box_d: f64, color: Color) -> LayoutBox {
+    let shift = (box_h - box_d + label.depth - label.height) / 2.0;
+    LayoutBox {
+        width: label.width,
+        height: box_h,
+        depth: box_d,
+        content: BoxContent::RaiseBox {
+            body: Box::new(label),
+            shift,
+        },
+        color,
+    }
+}
+
+/// Side labels on vertical `{CD}` arrows: KaTeX `\\\\cdleft` / `\\\\cdright` both use
+/// `options.style.sup()` (`cd.js` htmlBuilder), then our pipeline must scale like `OpLimits`
+/// scripts — `RaiseBox` in `to_display` does not apply script size, so wrap in `Scaled`.
+fn cd_side_label_scaled(body: &ParseNode, options: &LayoutOptions) -> LayoutBox {
+    let sup_style = options.style.superscript();
+    let sup_opts = options.with_style(sup_style);
+    let sup_ratio = sup_style.size_multiplier() / options.style.size_multiplier();
+    let inner = layout_node(body, &sup_opts);
+    if (sup_ratio - 1.0).abs() < 1e-6 {
+        inner
+    } else {
+        LayoutBox {
+            width: inner.width * sup_ratio,
+            height: inner.height * sup_ratio,
+            depth: inner.depth * sup_ratio,
+            content: BoxContent::Scaled {
+                body: Box::new(inner),
+                child_scale: sup_ratio,
+            },
+            color: options.color,
+        }
+    }
+}
+
+/// Stretch ↑ / ↓ to span the CD arrow row (`total_height` = height + depth in em).
+///
+/// Reuses the same filled KaTeX stretchy path as horizontal `\cdrightarrow` (see
+/// `katex_svg::katex_cd_vert_arrow_from_rightarrow`) so the head/shaft match the horizontal CD
+/// arrows; `make_stretchy_delim` does not stack ↑/↓ to arbitrary heights.
+fn cd_stretch_vert_arrow_box(total_height: f64, down: bool, options: &LayoutOptions) -> LayoutBox {
+    let axis = options.metrics().axis_height;
+    let depth = (total_height / 2.0 - axis).max(0.0);
+    let height = total_height - depth;
+    if let Some((commands, w)) =
+        crate::katex_svg::katex_cd_vert_arrow_from_rightarrow(down, total_height, axis)
+    {
+        return LayoutBox {
+            width: w,
+            height,
+            depth,
+            content: BoxContent::SvgPath {
+                commands,
+                fill: true,
+            },
+            color: options.color,
+        };
+    }
+    // Fallback (should not happen): `\cdrightarrow` is always in the stretchy table.
+    if down {
+        make_stretchy_delim("\\downarrow", SIZE_TO_MAX_HEIGHT[2], options)
+    } else {
+        make_stretchy_delim("\\uparrow", SIZE_TO_MAX_HEIGHT[2], options)
+    }
+}
+
+/// Render a single CdArrow cell.
+///
+/// `target_size`:
+/// - `w > 0` for horizontal arrows: shaft length is exactly `w` em (KaTeX: per-cell natural width,
+///   not the full column max — see `.katex .mtable` + `.stretchy { width: 100% }` where the cell
+///   span is only as wide as content; narrow arrows stay at `max(labels, minCDarrowwidth)` and sit
+///   centered in a wider column).
+/// - `h > 0` for vertical arrows: shaft total height (height+depth) = `h`.
+/// - `0.0` = natural size (pass 1).
+///
+/// `target_col_width`: when `> 0`, center the cell in this column width (horizontal: side kerns;
+/// vertical: kerns around shaft + labels).
+///
+/// `target_depth` (vertical only): depth portion of `target_size` when `> 0`, so that
+/// `box_h = target_size - target_depth` and `box_d = target_depth`.
+fn layout_cd_arrow(
+    direction: &str,
+    label_above: Option<&ParseNode>,
+    label_below: Option<&ParseNode>,
+    target_size: f64,
+    target_col_width: f64,
+    _target_depth: f64,
+    options: &LayoutOptions,
+) -> LayoutBox {
+    let metrics = options.metrics();
+    let axis = metrics.axis_height;
+
+    // Vertical CD: kern between side label and shaft (KaTeX `cd-label-*` sits tight; 0.25em
+    // widens object columns vs `tests/golden/fixtures` CD).
+    const CD_VERT_SIDE_KERN_EM: f64 = 0.11;
+
+    match direction {
+        "right" | "left" | "horiz_eq" => {
+            // ── Horizontal arrow: reuse katex_stretchy_path for proper KaTeX shape ──
+            let sup_style = options.style.superscript();
+            let sub_style = options.style.subscript();
+            let sup_opts = options.with_style(sup_style);
+            let sub_opts = options.with_style(sub_style);
+            let sup_ratio = sup_style.size_multiplier() / options.style.size_multiplier();
+            let sub_ratio = sub_style.size_multiplier() / options.style.size_multiplier();
+
+            let above_box = label_above.map(|n| layout_node(n, &sup_opts));
+            let below_box = label_below.map(|n| layout_node(n, &sub_opts));
+
+            let above_w = above_box.as_ref().map(|b| b.width * sup_ratio).unwrap_or(0.0);
+            let below_w = below_box.as_ref().map(|b| b.width * sub_ratio).unwrap_or(0.0);
+
+            // KaTeX `stretchy.js`: CD uses `\\cdrightarrow` / `\\cdleftarrow` / `\\cdlongequal` (minWidth 3.0em).
+            let path_label = if direction == "right" {
+                "\\cdrightarrow"
+            } else if direction == "left" {
+                "\\cdleftarrow"
+            } else {
+                "\\cdlongequal"
+            };
+            let min_shaft_w = crate::katex_svg::katex_stretchy_min_width_em(path_label).unwrap_or(1.0);
+            // Based on KaTeX `.cd-arrow-pad` (0.27778 / 0.55556 script-em); slightly trimmed so
+            // `natural_w` matches golden KaTeX PNGs in our box model (e.g. 0150).
+            const CD_LABEL_PAD_L: f64 = 0.22;
+            const CD_LABEL_PAD_R: f64 = 0.48;
+            let cd_pad_sup = (CD_LABEL_PAD_L + CD_LABEL_PAD_R) * sup_ratio;
+            let cd_pad_sub = (CD_LABEL_PAD_L + CD_LABEL_PAD_R) * sub_ratio;
+            let upper_need = above_box
+                .as_ref()
+                .map(|_| above_w + cd_pad_sup)
+                .unwrap_or(0.0);
+            let lower_need = below_box
+                .as_ref()
+                .map(|_| below_w + cd_pad_sub)
+                .unwrap_or(0.0);
+            let natural_w = upper_need.max(lower_need).max(0.0);
+            let shaft_w = if target_size > 0.0 {
+                target_size
+            } else {
+                natural_w.max(min_shaft_w)
+            };
+
+            let (commands, actual_arrow_h, fill_arrow) =
+                match crate::katex_svg::katex_stretchy_path(path_label, shaft_w) {
+                    Some((c, h)) => (c, h, true),
+                    None => {
+                        // Fallback hand-drawn (should not happen for these labels)
+                        let arrow_h = 0.3_f64;
+                        let ah = 0.12_f64;
+                        let cmds = if direction == "horiz_eq" {
+                            let gap = 0.06;
+                            vec![
+                                PathCommand::MoveTo { x: 0.0, y: -gap },
+                                PathCommand::LineTo { x: shaft_w, y: -gap },
+                                PathCommand::MoveTo { x: 0.0, y: gap },
+                                PathCommand::LineTo { x: shaft_w, y: gap },
+                            ]
+                        } else if direction == "right" {
+                            vec![
+                                PathCommand::MoveTo { x: 0.0, y: 0.0 },
+                                PathCommand::LineTo { x: shaft_w, y: 0.0 },
+                                PathCommand::MoveTo { x: shaft_w - ah, y: -ah },
+                                PathCommand::LineTo { x: shaft_w, y: 0.0 },
+                                PathCommand::LineTo { x: shaft_w - ah, y: ah },
+                            ]
+                        } else {
+                            vec![
+                                PathCommand::MoveTo { x: shaft_w, y: 0.0 },
+                                PathCommand::LineTo { x: 0.0, y: 0.0 },
+                                PathCommand::MoveTo { x: ah, y: -ah },
+                                PathCommand::LineTo { x: 0.0, y: 0.0 },
+                                PathCommand::LineTo { x: ah, y: ah },
+                            ]
+                        };
+                        (cmds, arrow_h, false)
+                    }
+                };
+
+            // Arrow box centered at y=0 (same as layout_xarrow)
+            let arrow_half = actual_arrow_h / 2.0;
+            let arrow_box = LayoutBox {
+                width: shaft_w,
+                height: arrow_half,
+                depth: arrow_half,
+                content: BoxContent::SvgPath { commands, fill: fill_arrow },
+                color: options.color,
+            };
+
+            // Total height/depth for OpLimits (mirrors layout_xarrow)
+            let gap = 0.111;
+            let sup_h = above_box.as_ref().map(|b| b.height * sup_ratio).unwrap_or(0.0);
+            let sup_d = above_box.as_ref().map(|b| b.depth * sup_ratio).unwrap_or(0.0);
+            let height = axis + arrow_half + gap + sup_h + sup_d;
+            let depth = if let Some(ref bel) = below_box {
+                let sub_h = bel.height * sub_ratio;
+                let sub_d = bel.depth * sub_ratio;
+                (arrow_half - axis).max(0.0) + gap + sub_h + sub_d
+            } else {
+                (arrow_half - axis).max(0.0)
+            };
+
+            let inner = LayoutBox {
+                width: shaft_w,
+                height,
+                depth,
+                content: BoxContent::OpLimits {
+                    base: Box::new(arrow_box),
+                    sup: above_box.map(Box::new),
+                    sub: below_box.map(Box::new),
+                    base_shift: -axis,
+                    sup_kern: gap,
+                    sub_kern: gap,
+                    slant: 0.0,
+                    sup_scale: sup_ratio,
+                    sub_scale: sub_ratio,
+                },
+                color: options.color,
+            };
+
+            // KaTeX HTML: column width is max(cell widths); each cell stays intrinsic width and is
+            // centered in the column (`col-align-c`). Match with side kerns, not by stretching the
+            // shaft to the column max.
+            if target_col_width > inner.width + 1e-6 {
+                let extra = target_col_width - inner.width;
+                let kl = extra / 2.0;
+                let kr = extra - kl;
+                let mut children: Vec<LayoutBox> = Vec::with_capacity(3);
+                if kl > 0.0 {
+                    children.push(LayoutBox::new_kern(kl));
+                }
+                children.push(inner);
+                if kr > 0.0 {
+                    children.push(LayoutBox::new_kern(kr));
+                }
+                LayoutBox {
+                    width: target_col_width,
+                    height,
+                    depth,
+                    content: BoxContent::HBox(children),
+                    color: options.color,
+                }
+            } else {
+                inner
+            }
+        }
+
+        "down" | "up" | "vert_eq" => {
+            // Pass 1: \Big (~1.8em). Pass 2: stretch ↑/↓ / ‖ to the full arrow-row span (em).
+            let big_total = SIZE_TO_MAX_HEIGHT[2]; // 1.8em
+
+            let shaft_box = match direction {
+                "vert_eq" if target_size > 0.0 => {
+                    make_vert_delim_box(target_size.max(big_total), true, options)
+                }
+                "vert_eq" => make_stretchy_delim("\\Vert", big_total, options),
+                "down" if target_size > 0.0 => {
+                    cd_stretch_vert_arrow_box(target_size.max(1.0), true, options)
+                }
+                "up" if target_size > 0.0 => {
+                    cd_stretch_vert_arrow_box(target_size.max(1.0), false, options)
+                }
+                "down" => make_stretchy_delim("\\downarrow", big_total, options),
+                "up" => make_stretchy_delim("\\uparrow", big_total, options),
+                _ => make_stretchy_delim("\\downarrow", big_total, options),
+            };
+            let box_h = shaft_box.height;
+            let box_d = shaft_box.depth;
+            let shaft_w = shaft_box.width;
+
+            // Side labels: KaTeX uses `style.sup()` for both left and right; scale via `Scaled`
+            // so `to_display::RaiseBox` does not leave them at display size (unlike `OpLimits`).
+            let left_box = label_above.map(|n| {
+                cd_vcenter_side_label(cd_side_label_scaled(n, options), box_h, box_d, options.color)
+            });
+            let right_box = label_below.map(|n| {
+                cd_vcenter_side_label(cd_side_label_scaled(n, options), box_h, box_d, options.color)
+            });
+
+            let left_w = left_box.as_ref().map(|b| b.width).unwrap_or(0.0);
+            let right_w = right_box.as_ref().map(|b| b.width).unwrap_or(0.0);
+            let left_part = left_w + if left_w > 0.0 { CD_VERT_SIDE_KERN_EM } else { 0.0 };
+            let right_part = (if right_w > 0.0 { CD_VERT_SIDE_KERN_EM } else { 0.0 }) + right_w;
+            let inner_w = left_part + shaft_w + right_part;
+
+            // Center shaft within the column width (pass 2) using side kerns.
+            let (kern_left, kern_right, total_w) = if target_col_width > inner_w {
+                let extra = target_col_width - inner_w;
+                let kl = extra / 2.0;
+                let kr = extra - kl;
+                (kl, kr, target_col_width)
+            } else {
+                (0.0, 0.0, inner_w)
+            };
+
+            let mut children: Vec<LayoutBox> = Vec::new();
+            if kern_left > 0.0 { children.push(LayoutBox::new_kern(kern_left)); }
+            if let Some(lb) = left_box {
+                children.push(lb);
+                children.push(LayoutBox::new_kern(CD_VERT_SIDE_KERN_EM));
+            }
+            children.push(shaft_box);
+            if let Some(rb) = right_box {
+                children.push(LayoutBox::new_kern(CD_VERT_SIDE_KERN_EM));
+                children.push(rb);
+            }
+            if kern_right > 0.0 { children.push(LayoutBox::new_kern(kern_right)); }
+
+            LayoutBox {
+                width: total_w,
+                height: box_h,
+                depth: box_d,
+                content: BoxContent::HBox(children),
+                color: options.color,
+            }
+        }
+
+        // "none" or unknown: empty placeholder
+        _ => LayoutBox::new_empty(),
+    }
+}
+
+/// Layout a `\begin{CD}...\end{CD}` commutative diagram with two-pass stretching.
+fn layout_cd(body: &[Vec<ParseNode>], options: &LayoutOptions) -> LayoutBox {
+    let metrics = options.metrics();
+    let pt = 1.0 / metrics.pt_per_em;
+    // KaTeX `environments/array.js`: CD uses baselineskip = 3ex (not 12pt like plain arrays).
+    // That yields enough vertical gap between object rows so the diagram height matches amscd/KaTeX.
+    let baselineskip = 3.0 * metrics.x_height;
+    // Use a standard strut for CD rows (same 0.7/0.3 split as \@arstrut / KaTeX arstrutHeight/Depth).
+    let arstrut_h = 0.7 * baselineskip;
+    let arstrut_d = 0.3 * baselineskip;
+
+    let num_rows = body.len();
+    if num_rows == 0 {
+        return LayoutBox::new_empty();
+    }
+    let num_cols = body.iter().map(|r| r.len()).max().unwrap_or(0);
+    if num_cols == 0 {
+        return LayoutBox::new_empty();
+    }
+
+    // `\jot` (3pt): added to every row depth below; include in vertical-arrow stretch span.
+    let jot = 3.0 * pt;
+
+    // ── Pass 1: layout all cells at natural size ────────────────────────────
+    let mut cell_boxes: Vec<Vec<LayoutBox>> = Vec::with_capacity(num_rows);
+    let mut col_widths = vec![0.0_f64; num_cols];
+    let mut row_heights = vec![arstrut_h; num_rows];
+    let mut row_depths = vec![arstrut_d; num_rows];
+
+    for (r, row) in body.iter().enumerate() {
+        let mut row_boxes: Vec<LayoutBox> = Vec::with_capacity(num_cols);
+
+        for (c, cell) in row.iter().enumerate() {
+            let cbox = match cell {
+                ParseNode::CdArrow { direction, label_above, label_below, .. } => {
+                    layout_cd_arrow(
+                        direction,
+                        label_above.as_deref(),
+                        label_below.as_deref(),
+                        0.0, // natural size in pass 1
+                        0.0, // natural column width
+                        0.0, // natural depth split
+                        options,
+                    )
+                }
+                ParseNode::OrdGroup { body: cell_body, .. } => {
+                    layout_expression(cell_body, options, true)
+                }
+                other => layout_node(other, options),
+            };
+
+            // KaTeX array builder takes max height/depth over every cell in the row — including
+            // horizontal arrows in arrow rows (do not skip odd columns).
+            row_heights[r] = row_heights[r].max(cbox.height);
+            row_depths[r] = row_depths[r].max(cbox.depth);
+            col_widths[c] = col_widths[c].max(cbox.width);
+            row_boxes.push(cbox);
+        }
+
+        // Pad missing columns
+        while row_boxes.len() < num_cols {
+            row_boxes.push(LayoutBox::new_empty());
+        }
+        cell_boxes.push(row_boxes);
+    }
+
+    // Column targets after pass 1 (max natural width per column). Horizontal shafts use per-cell
+    // `target_size`, not this max — same as KaTeX: minCDarrowwidth is min-width on the glyph span,
+    // not “stretch every row to column max”.
+    let col_target_w: Vec<f64> = col_widths.clone();
+
+    // ── Pass 2: re-layout arrow cells with target dimensions ───────────────
+    for (r, row) in body.iter().enumerate() {
+        let is_arrow_row = r % 2 == 1;
+        for (c, cell) in row.iter().enumerate() {
+            if let ParseNode::CdArrow { direction, label_above, label_below, .. } = cell {
+                let (new_box, col_w) = if !is_arrow_row && c % 2 == 1 {
+                    // Horizontal: shaft = this cell's pass-1 width; center in `col_target_w[c]`.
+                    let shaft_pass1 = cell_boxes[r][c].width;
+                    let b = layout_cd_arrow(
+                        direction,
+                        label_above.as_deref(),
+                        label_below.as_deref(),
+                        shaft_pass1,
+                        col_target_w[c],
+                        0.0,
+                        options,
+                    );
+                    let w = b.width;
+                    (b, w)
+                } else if is_arrow_row && c % 2 == 0 {
+                    // Vertical arrow: stretch shaft to the full arrow-row height (incl. future `\jot`).
+                    let v_span = row_heights[r] + row_depths[r] + jot;
+                    let b = layout_cd_arrow(
+                        direction,
+                        label_above.as_deref(),
+                        label_below.as_deref(),
+                        v_span,
+                        col_widths[c], // center shaft within column
+                        0.0,
+                        options,
+                    );
+                    let w = b.width;
+                    (b, w)
+                } else {
+                    continue;
+                };
+                col_widths[c] = col_widths[c].max(col_w);
+                cell_boxes[r][c] = new_box;
+            }
+        }
+    }
+
+    // KaTeX `environments/cd.js` sets `addJot: true` for CD; `array.js` adds `\jot` (3pt) to each
+    // row's depth (same as `layout_array` when `add_jot` is set).
+    for rd in &mut row_depths {
+        *rd += jot;
+    }
+
+    // ── Build the final Array LayoutBox ────────────────────────────────────
+    // Inter-column gap: KaTeX `cd.js` 0.25+0.25 per boundary; golden PNGs match ~0.36–0.40em
+    // total per boundary in ink bbox at 40px (see `tools/golden_compare` score on 0150).
+    const CD_INTERCOLUMN_GAP_EM: f64 = 0.18;
+    let col_gap = CD_INTERCOLUMN_GAP_EM;
+
+    // Column alignment: objects are centered, arrows are centered
+    let col_aligns: Vec<u8> = (0..num_cols).map(|_| b'c').collect();
+
+    // No vertical separators for CD
+    let col_separators = vec![false; num_cols + 1];
+
+    let mut total_height = 0.0_f64;
+    let mut row_positions = Vec::with_capacity(num_rows);
+    for r in 0..num_rows {
+        total_height += row_heights[r];
+        row_positions.push(total_height);
+        total_height += row_depths[r];
+    }
+
+    let offset = total_height / 2.0 + metrics.axis_height;
+    let height = offset;
+    let depth = total_height - offset;
+
+    // Total width: sum of col_widths + col_gap between each
+    let total_width = col_widths.iter().sum::<f64>()
+        + col_gap * (num_cols.saturating_sub(1)) as f64;
+
+    // Build hlines_before_row (all empty for CD)
+    let hlines_before_row: Vec<Vec<bool>> = (0..=num_rows).map(|_| vec![]).collect();
+
+    LayoutBox {
+        width: total_width,
+        height,
+        depth,
+        content: BoxContent::Array {
+            cells: cell_boxes,
+            col_widths,
+            col_aligns,
+            row_heights,
+            row_depths,
+            col_gap,
+            offset,
+            content_x_offset: 0.0,
+            col_separators,
+            hlines_before_row,
+            rule_thickness: 0.04 * pt,
+            double_rule_sep: metrics.double_rule_sep,
+        },
+        color: options.color,
     }
 }
 
