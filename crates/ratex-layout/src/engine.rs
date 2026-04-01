@@ -1747,9 +1747,18 @@ fn layout_accent(
                 // body's height bounds for normal-height bases and produces a
                 // formula height == body_height (accent adds no extra height),
                 // matching KaTeX's VList.
-                let katex_pos = (body_box.height - options.metrics().x_height).max(0.0);
-                let correction = (accent_box.height - 0.35_f64.min(accent_box.height)).max(0.0);
-                katex_pos + correction
+                //
+                // \bar / \= (macron) are an exception: for x-height bases (a, e, o, …)
+                // body.height ≈ xHeight so katex_pos ≈ 0 and the bar sits on the letter
+                // (golden \text{\={a}}).  Tie macron clearance to full body height like
+                // the pre-62f7ba53 engine, then apply the same small kern as before.
+                if label == "\\bar" || label == "\\=" {
+                    body_box.height
+                } else {
+                    let katex_pos = (body_box.height - options.metrics().x_height).max(0.0);
+                    let correction = (accent_box.height - 0.35_f64.min(accent_box.height)).max(0.0);
+                    katex_pos + correction
+                }
             }
         };
         // KaTeX VList places the accent so its depth-bottom edge sits at the kern
