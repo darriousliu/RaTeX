@@ -56,9 +56,9 @@ RaTeX cuts the web stack out entirely:
 | **Android** | JNI + Kotlin + Canvas · AAR | Out of the box |
 | **Flutter** | Dart FFI + `CustomPainter` | Out of the box |
 | **React Native** | Native module + C ABI · iOS/Android views | Out of the box |
-| **Web** | WASM → Canvas 2D · `<ratex-formula>` Web Component | Working |
-| **Server / CI** | tiny-skia → PNG rasterizer | Working |
-| **SVG** | `ratex-svg` → self-contained vector SVG | Working |
+| **Web** | WASM → Canvas 2D · `<ratex-formula>` Web Component | Out of the box |
+| **Server / CI** | tiny-skia → PNG rasterizer | Out of the box |
+| **SVG** | `ratex-svg` → self-contained vector SVG | Out of the box |
 
 ---
 
