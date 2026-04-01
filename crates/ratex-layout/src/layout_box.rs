@@ -106,6 +106,8 @@ pub enum BoxContent {
         clearance: f64,
         skew: f64,
         is_below: bool,
+        /// KaTeX `accentunder.js`: extra em gap between base bottom and under-accent (e.g. 0.12 for `\\utilde`).
+        under_gap_em: f64,
     },
 
     /// A stretchy delimiter (\left, \right) wrapping inner content.

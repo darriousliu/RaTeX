@@ -1619,6 +1619,11 @@ fn layout_accent(
         // (\widehat, \widetilde, \overgroup, …) pulls the path down onto the base (golden 0604/0885/0886).
         // Slightly tighter than 0.08em — aligns wide SVG hats with KaTeX PNG crops (e.g. 0935).
         let gap = 0.065;
+        let under_gap_em = if is_below && label == "\\utilde" {
+            0.12
+        } else {
+            0.0
+        };
         let clearance = if is_below {
             body_box.height + body_box.depth + gap
         } else if label == "\\vec" {
@@ -1629,7 +1634,7 @@ fn layout_accent(
             body_box.height + gap
         };
         let (height, depth) = if is_below {
-            (body_box.height, body_box.depth + h + gap)
+            (body_box.height, body_box.depth + h + gap + under_gap_em)
         } else if label == "\\vec" {
             // Box height = clearance + H_EM, matching KaTeX VList height.
             (clearance + h, body_box.depth)
@@ -1655,6 +1660,7 @@ fn layout_accent(
                 clearance,
                 skew: vec_skew,
                 is_below,
+                under_gap_em,
             },
             color: options.color,
         };
@@ -1843,6 +1849,7 @@ fn layout_accent(
             clearance,
             skew,
             is_below,
+            under_gap_em: 0.0,
         },
         color: options.color,
     }
@@ -3304,6 +3311,7 @@ fn layout_horiz_brace(
             clearance,
             skew: 0.0,
             is_below: !is_over,
+            under_gap_em: 0.0,
         },
         color: options.color,
     }

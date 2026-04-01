@@ -342,11 +342,13 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
             clearance,
             skew,
             is_below,
+            under_gap_em,
         } => {
             emit_box(base, x, y, scale, items);
             if *is_below {
                 let accent_x = x + (base.width - accent.width) * scale / 2.0;
-                let accent_y = y + base.depth * scale + accent.height * scale;
+                let accent_y =
+                    y + (base.depth + under_gap_em) * scale + accent.height * scale;
                 emit_box(accent, accent_x, accent_y, scale, items);
             } else {
                 let accent_x = x + (base.width - accent.width) * scale / 2.0 + skew * scale;
