@@ -2295,7 +2295,8 @@ fn layout_array(
     // and cap relation spacing in cells to 3mu so spacing before/after "=" is equal.
     const ALIGN_RELATION_MU: f64 = 3.0;
     let col_gap = match col_sep_type {
-        Some("align") | Some("alignat") => mu_to_em(ALIGN_RELATION_MU, metrics.quad),
+        Some("align") => mu_to_em(ALIGN_RELATION_MU, metrics.quad),
+        Some("alignat") => 0.0,
         Some("small") => {
             // smallmatrix: 2 × thickspace × (script_multiplier / current_multiplier)
             // KaTeX: arraycolsep = 0.2778em × (scriptMultiplier / sizeMultiplier)
