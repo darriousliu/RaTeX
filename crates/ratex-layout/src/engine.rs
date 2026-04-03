@@ -4228,8 +4228,11 @@ fn layout_cd(body: &[Vec<ParseNode>], options: &LayoutOptions) -> LayoutBox {
                         options,
                     )
                 }
+                // KaTeX CD object cells are `styling` nodes; `sizingGroup` builds the body with
+                // `buildExpression(..., false)` (see katex `functions/sizing.js`), so no inter-atom
+                // math glue inside a cell — matching that avoids spurious Ord–Bin space (e.g. golden 0963).
                 ParseNode::OrdGroup { body: cell_body, .. } => {
-                    layout_expression(cell_body, options, true)
+                    layout_expression(cell_body, options, false)
                 }
                 other => layout_node(other, options),
             };
