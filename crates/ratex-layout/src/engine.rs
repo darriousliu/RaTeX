@@ -3236,9 +3236,20 @@ fn mclass_str_to_math_class(mclass: &str) -> MathClass {
 }
 
 /// Check if a ParseNode is a single character box (affects sup/sub positioning).
+/// KaTeX `getBaseElem` (`utils.js`): unwrap `ordgroup` / `color` with a single child, and `font`.
+/// Used for TeX "character box" checks in superscript Rule 18a (`supsub.js`).
+fn get_base_elem(node: &ParseNode) -> &ParseNode {
+    match node {
+        ParseNode::OrdGroup { body, .. } if body.len() == 1 => get_base_elem(&body[0]),
+        ParseNode::Color { body, .. } if body.len() == 1 => get_base_elem(&body[0]),
+        ParseNode::Font { body, .. } => get_base_elem(body),
+        _ => node,
+    }
+}
+
 fn is_character_box(node: &ParseNode) -> bool {
     matches!(
-        node,
+        get_base_elem(node),
         ParseNode::MathOrd { .. }
             | ParseNode::TextOrd { .. }
             | ParseNode::Atom { .. }
