@@ -3262,20 +3262,18 @@ fn layout_horiz_brace(
             }
         };
 
-    // Shift y-coordinates: centered commands → positioned for over/under
-    // For over: foot at y=0 (bottom), peak goes up → shift by -brace_h/2
-    // For under: foot at y=0 (top), peak goes down → shift by +brace_h/2
-    let y_shift = if is_over {
-        -brace_h / 2.0
-    } else {
-        brace_h / 2.0
-    };
+    // Shift y-coordinates: centered commands → SVG-downward convention (height=0, depth=brace_h).
+    // The raw path is centered at y=0 (range ±brace_h/2). Shift by +brace_h/2 so that:
+    //   overbrace: peak at y=0 (top), feet at y=+brace_h (bottom)
+    //   underbrace: feet at y=0 (top), peak at y=+brace_h (bottom)
+    // Both use height=0, depth=brace_h so the rendering code's SVG accent path handles them.
+    let y_shift = brace_h / 2.0;
     let commands = shift_path_y(raw_commands, y_shift);
 
     let brace_box = LayoutBox {
         width: w,
-        height: if is_over { brace_h } else { 0.0 },
-        depth: if is_over { 0.0 } else { brace_h },
+        height: 0.0,
+        depth: brace_h,
         content: BoxContent::SvgPath {
             commands,
             fill: brace_fill,
