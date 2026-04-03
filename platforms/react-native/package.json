@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
+    "prepack": "rm -f ios/Fonts/*.ttf && cp -L ../../fonts/*.ttf ios/Fonts/",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
