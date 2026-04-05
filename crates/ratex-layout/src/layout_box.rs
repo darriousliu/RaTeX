@@ -139,6 +139,16 @@ pub enum BoxContent {
         rule_thickness: f64,
         /// Gap between consecutive \hline or \hdashline rules (= \doublerulesep, in em).
         double_rule_sep: f64,
+        /// Width of the cell grid including `content_x_offset` padding (em); excludes tag column.
+        array_inner_width: f64,
+        /// Horizontal gap between grid and tag column (em).
+        tag_gap_em: f64,
+        /// Width reserved for tags; tags are right-aligned in this column (em).
+        tag_col_width: f64,
+        /// Per-row tag layout; length matches number of rows.
+        row_tags: Vec<Option<LayoutBox>>,
+        /// When true, tags sit left of the grid (leqno-style).
+        tags_left: bool,
     },
 
     /// An SVG-style path (arrows, braces, etc.).

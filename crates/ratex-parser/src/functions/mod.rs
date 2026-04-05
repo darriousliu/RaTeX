@@ -35,6 +35,7 @@ pub mod def;
 pub mod htmlmathml;
 pub mod char_cmd;
 pub mod math;
+pub mod tag;
 
 use std::collections::HashMap;
 use crate::error::ParseResult;
@@ -123,6 +124,7 @@ pub static FUNCTIONS: std::sync::LazyLock<HashMap<&'static str, FunctionSpec>> =
         htmlmathml::register(&mut map);
         char_cmd::register(&mut map);
         math::register(&mut map);
+        tag::register(&mut map);
         map
     });
 

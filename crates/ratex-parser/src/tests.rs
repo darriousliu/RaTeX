@@ -717,6 +717,39 @@ mod environments {
     }
 
     #[test]
+    fn tag_primitive_parses_argument() {
+        let ast = parse("\\tag{1}").unwrap();
+        assert_eq!(ast.len(), 1);
+        assert_eq!(ast[0].type_name(), "tag");
+    }
+
+    #[test]
+    fn align_with_tag_strips_tag_and_sets_array_tags() {
+        use crate::parse_node::ArrayTag;
+        let ast =
+            parse("\\begin{aligned} x &= 1 \\tag{1} \\\\ y &= 2 \\end{aligned}").unwrap();
+        if let ParseNode::Array { body, tags, .. } = &ast[0] {
+            assert_eq!(body.len(), 2);
+            let row0_last = &body[0][body[0].len() - 1];
+            let inner = match row0_last {
+                ParseNode::Styling { body: sb, .. } => &sb[0],
+                n => n,
+            };
+            let ob = match inner {
+                ParseNode::OrdGroup { body, .. } => body,
+                _ => panic!("expected ordgroup"),
+            };
+            assert!(!ob.iter().any(|n| n.type_name() == "tag"));
+            let tags = tags.as_ref().expect("tags");
+            assert_eq!(tags.len(), 2);
+            assert!(matches!(&tags[0], ArrayTag::Explicit(v) if !v.is_empty()));
+            assert!(matches!(&tags[1], ArrayTag::Auto(false)));
+        } else {
+            panic!("Expected Array node");
+        }
+    }
+
+    #[test]
     fn matrix_single_row() {
         let ast = parse("\\begin{matrix} a & b & c \\end{matrix}").unwrap();
         if let ParseNode::Array { body, .. } = &ast[0] {

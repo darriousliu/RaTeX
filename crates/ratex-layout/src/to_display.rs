@@ -399,6 +399,11 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
             hlines_before_row,
             rule_thickness,
             double_rule_sep,
+            array_inner_width,
+            tag_gap_em,
+            tag_col_width,
+            row_tags,
+            tags_left: _tags_left,
         } => {
             let y_top = y - offset * scale;
             let array_total_height = (lbox.height + lbox.depth) * scale;
@@ -434,7 +439,7 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
                         items.push(DisplayItem::Line {
                             x,
                             y: start_y + i as f64 * rule_step,
-                            width: lbox.width * scale,
+                            width: array_inner_width * scale,
                             thickness: line_thickness,
                             color: lbox.color,
                             dashed: is_dashed,
@@ -498,6 +503,14 @@ fn emit_box(lbox: &LayoutBox, x: f64, y: f64, scale: f64, items: &mut Vec<Displa
                     cur_x += cw * scale;
                     if c + 1 < row.len() {
                         cur_x += col_gap * scale;
+                    }
+                }
+                if *tag_col_width > 0.0 {
+                    if let Some(tb) = row_tags.get(r).and_then(|o| o.as_ref()) {
+                        let tag_start_em = array_inner_width - content_x_offset + tag_gap_em;
+                        let tag_x =
+                            x + tag_start_em * scale + (tag_col_width - tb.width) * scale;
+                        emit_box(tb, tag_x, cur_y, scale, items);
                     }
                 }
                 cur_y += row_depths[r] * scale;

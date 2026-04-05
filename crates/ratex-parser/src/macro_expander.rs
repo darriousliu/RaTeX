@@ -465,10 +465,6 @@ impl<'a> MacroExpander<'a> {
             ("\\set", "\\bra@set{\\{\\,}{\\mid}{}{\\,\\}}"),
             ("\\Set", "\\bra@set{\\left\\{\\:}{\\;\\middle\\vert\\;}{\\;\\middle\\Vert\\;}{\\:\\right\\}}"),
 
-            // ── tag ──
-            ("\\tag", "\\@ifstar\\tag@literal\\tag@paren"),
-            ("\\tag@paren", "\\tag@literal{({#1})}"),
-            ("\\tag@literal", "\\gdef\\df@tag{\\text{#1}}"),
             // ── equation numbering (display math; no-op in parser) ──
             ("\\nonumber", "\\relax"),
             ("\\notag", "\\relax"),
