@@ -94,9 +94,10 @@
           <th>Formula</th>
           <th>KaTeX median (ms)</th>
           <th>RaTeX median (ms)</th>
+          <th>median ×</th>
           <th>KaTeX p95</th>
           <th>RaTeX p95</th>
-          <th>RaTeX speedup</th>
+          <th>p95 ×</th>
         </tr>
       </thead>
       <tbody id="results-body"></tbody>
@@ -342,17 +343,19 @@ async function runBenchmark(){
     const nameTd = el('td', { title: f.latex }, nameLabel);
     let row;
     if (errMsg){
-      row = el('tr', null, nameTd, el('td', { class: 'err', colspan: '5' }, errMsg));
+      row = el('tr', null, nameTd, el('td', { class: 'err', colspan: '6' }, errMsg));
     } else {
-      const speed = kStats.median / rStats.median;
-      const speedCls = speed >= 1 ? 'faster' : 'slower';
+      const medianSpeed = kStats.median / rStats.median;
+      const p95Speed = kStats.p95 / rStats.p95;
+      const cls = (s) => s >= 1 ? 'faster' : 'slower';
       row = el('tr', null,
         nameTd,
         el('td', null, kStats.median.toFixed(3)),
         el('td', null, rStats.median.toFixed(3)),
+        el('td', { class: cls(medianSpeed) }, medianSpeed.toFixed(2) + '×'),
         el('td', null, kStats.p95.toFixed(3)),
         el('td', null, rStats.p95.toFixed(3)),
-        el('td', { class: speedCls }, speed.toFixed(2) + '×'),
+        el('td', { class: cls(p95Speed) }, p95Speed.toFixed(2) + '×'),
       );
     }
     tbody.appendChild(row);
