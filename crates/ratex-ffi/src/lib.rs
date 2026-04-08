@@ -3,6 +3,15 @@
 //! Platform-specific modules:
 //! - `jni` — Android JNI bridge (compiled only on `target_os = "android"`)
 //!
+//! ## DisplayList JSON protocol
+//!
+//! The primary output of this crate is a UTF-8 JSON string representing a `DisplayList`.
+//! Treat this JSON as a **public protocol**: decoders should ignore unknown fields and
+//! tolerate missing optional fields for forward/backward compatibility.
+//!
+//! See `docs/DISPLAYLIST_JSON_PROTOCOL.md` in the repository for the full schema and
+//! change policy.
+//!
 //! # Usage (C)
 //! ```c
 //! RatexOptions opts = { sizeof(RatexOptions), 1 };  // display_mode=1 (block)
@@ -79,7 +88,11 @@ fn do_layout(latex_str: &str, style: MathStyle) -> Result<String, String> {
     let layout_box = layout(&nodes, &options);
     let display_list = to_display_list(&layout_box);
     let value = serde_json::to_value(&display_list).map_err(|e| format!("serialization error: {e}"))?;
-    let sanitized = sanitize_json_numbers(value);
+    let mut sanitized = sanitize_json_numbers(value);
+    // Add a protocol version at the top level for forward-compatible decoding.
+    if let Value::Object(ref mut map) = sanitized {
+        map.insert("version".to_string(), Value::Number(1.into()));
+    }
     serde_json::to_string(&sanitized).map_err(|e| format!("JSON stringify error: {e}"))
 }
 

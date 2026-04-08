@@ -25,29 +25,33 @@
  *
  * DisplayList JSON format:
  *   {
+ *     "version": 1,         // protocol version (optional; decoders may treat missing as 0)
  *     "width":  <number>,   // total width in em units
  *     "height": <number>,   // ascent above baseline in em units
  *     "depth":  <number>,   // descent below baseline in em units
  *     "items":  [           // array of drawing commands (see below)
- *       { "GlyphPath": { "x": <f64>, "y": <f64>, "scale": <f64>,
- *                        "font": <string>, "char_code": <u32>,
- *                        "commands": [<PathCommand>, ...],
- *                        "color": {"r":<f32>,"g":<f32>,"b":<f32>,"a":<f32>} } },
- *       { "Line":      { "x": <f64>, "y": <f64>, "width": <f64>, "thickness": <f64>,
- *                        "color": {...} } },
- *       { "Rect":      { "x": <f64>, "y": <f64>, "width": <f64>, "height": <f64>,
- *                        "color": {...} } },
- *       { "Path":      { "x": <f64>, "y": <f64>, "commands": [...],
- *                        "fill": <bool>, "color": {...} } }
+ *       { "type": "GlyphPath", "x": <f64>, "y": <f64>, "scale": <f64>,
+ *         "font": <string>, "char_code": <u32>, "color": {"r":<f32>,"g":<f32>,"b":<f32>,"a":<f32>} },
+ *       { "type": "Line", "x": <f64>, "y": <f64>, "width": <f64>, "thickness": <f64>,
+ *         "color": {...}, "dashed": <bool?> },
+ *       { "type": "Rect", "x": <f64>, "y": <f64>, "width": <f64>, "height": <f64>,
+ *         "color": {...} },
+ *       { "type": "Path", "x": <f64>, "y": <f64>, "commands": [<PathCommand>, ...],
+ *         "fill": <bool>, "color": {...} }
  *     ]
  *   }
  *
  * PathCommand variants:
- *   { "MoveTo": {"x":<f64>,"y":<f64>} }
- *   { "LineTo": {"x":<f64>,"y":<f64>} }
- *   { "CubicTo": {"x1":<f64>,"y1":<f64>,"x2":<f64>,"y2":<f64>,"x":<f64>,"y":<f64>} }
- *   { "QuadTo": {"x1":<f64>,"y1":<f64>,"x":<f64>,"y":<f64>} }
- *   { "Close": null }
+ *   { "type": "MoveTo",  "x":<f64>,"y":<f64> }
+ *   { "type": "LineTo",  "x":<f64>,"y":<f64> }
+ *   { "type": "CubicTo", "x1":<f64>,"y1":<f64>,"x2":<f64>,"y2":<f64>,"x":<f64>,"y":<f64> }
+ *   { "type": "QuadTo",  "x1":<f64>,"y1":<f64>,"x":<f64>,"y":<f64> }
+ *   { "type": "Close" }
+ *
+ * Protocol and compatibility:
+ *   Treat this JSON as a public protocol. Decoders should ignore unknown fields
+ *   and tolerate missing optional fields for forward/backward compatibility.
+ *   See docs/DISPLAYLIST_JSON_PROTOCOL.md for the full schema and change policy.
  *
  * Coordinate system:
  *   All coordinates are in em units. Multiply by font_size (pt or px) to get

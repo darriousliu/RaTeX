@@ -191,6 +191,16 @@ cargo test --all
 
 ---
 
+## 公式编号与 `\tag`
+
+RaTeX 以 KaTeX 兼容为目标，当前 **不实现自动公式编号**：
+
+- `equation` / `align` / `gather` / `alignat` 等**不带星号**的环境，渲染效果与对应的带星号版本一致（即不会自动生成编号）。
+- 如需显示编号/标签，请在每行末尾使用显式 `\tag{...}` 或 `\tag*{...}`（遵循 amsmath 语义）。
+- 在未实现自动编号时，`\notag` / `\nonumber` 视为无效果（no-op）。
+
+---
+
 ## 致谢
 
 RaTeX 深受 [KaTeX](https://katex.org/) 启发——其解析器架构、符号表、字体度量与排版语义是本引擎的基础。化学符号（`\ce`、`\pu`）由 [mhchem](https://mhchem.github.io/MathJax-mhchem/) 状态机的 Rust 移植实现。
