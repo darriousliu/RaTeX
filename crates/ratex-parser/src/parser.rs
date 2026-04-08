@@ -511,6 +511,16 @@ impl<'a> Parser<'a> {
 
         functions::check_mode_compatibility(func_data, self.mode, &func, Some(&token))?;
 
+        // `\hspace*{len}` — `*` is a separate token (not part of the control word); consume it here.
+        // Must use gullet peek/pop only: `parser.fetch()` without `consume()` advances the lexer and
+        // leaves `{` only in `next_token`, so `parse_size_group`'s `gullet.future()` would miss the brace.
+        if func == "\\hspace" {
+            self.gullet.consume_spaces();
+            if self.gullet.future().text == "*" {
+                self.gullet.pop_token();
+            }
+        }
+
         let (args, opt_args) = self.parse_arguments(&func, func_data)?;
 
         self.call_function(

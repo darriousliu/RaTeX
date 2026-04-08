@@ -5,9 +5,10 @@
 #   platforms/flutter/android/build.gradle,
 #   platforms/flutter/README.md,
 #   platforms/android/README.md,
+#   platforms/jvm/README.md, platforms/jvm/README.zh-CN.md,
 #   demo/flutter/pubspec.yaml,
 #   platforms/web/package.json, platforms/react-native/package.json
-# platforms/android（Maven Central）在未传 -PlibraryVersion 时从本文件读取版本，见 platforms/android/build.gradle.kts。
+# platforms/android / platforms/jvm（Maven Central）在未传 -PlibraryVersion 时从本文件读取版本，见各平台 build.gradle.kts。
 # 用法: ./scripts/set-version.sh [版本号]
 # 若省略版本号，则使用 VERSION 文件内容。
 
@@ -52,6 +53,11 @@ sed "s/ratex_flutter: \^[0-9][0-9.]*/ratex_flutter: ^$VER/" demo/flutter/pubspec
 # Android README（Maven artifact version）
 sed "s/ratex-android:[0-9][0-9.]*/ratex-android:$VER/g" platforms/android/README.md > platforms/android/README.md.tmp && mv platforms/android/README.md.tmp platforms/android/README.md
 
+# JVM README（Maven artifact version，与根目录 VERSION / -PlibraryVersion 一致）
+for jvm_readme in platforms/jvm/README.md platforms/jvm/README.zh-CN.md; do
+  sed "s/ratex-jvm:[0-9][0-9.]*/ratex-jvm:$VER/g" "$jvm_readme" > "$jvm_readme.tmp" && mv "$jvm_readme.tmp" "$jvm_readme"
+done
+
 # npm：Web（ratex-wasm）与 React Native
 node -e "
 const fs = require('fs');
@@ -62,4 +68,4 @@ for (const p of ['platforms/web/package.json', 'platforms/react-native/package.j
 }
 "
 
-echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/flutter/ios/ratex_flutter.podspec, platforms/flutter/android/build.gradle, platforms/flutter/README.md, platforms/android/README.md, demo/flutter/pubspec.yaml, platforms/web/package.json, platforms/react-native/package.json; Android Maven 使用根目录 VERSION"
+echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/flutter/ios/ratex_flutter.podspec, platforms/flutter/android/build.gradle, platforms/flutter/README.md, platforms/android/README.md, platforms/jvm/README.md, platforms/jvm/README.zh-CN.md, demo/flutter/pubspec.yaml, platforms/web/package.json, platforms/react-native/package.json; Android/JVM Maven 使用根目录 VERSION"

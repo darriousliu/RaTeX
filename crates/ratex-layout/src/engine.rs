@@ -1,5 +1,5 @@
 use ratex_font::{get_char_metrics, get_global_metrics, FontId};
-use ratex_parser::parse_node::{AtomFamily, Mode, ParseNode};
+use ratex_parser::parse_node::{ArrayTag, AtomFamily, Mode, ParseNode};
 use ratex_types::color::Color;
 use ratex_types::math_style::MathStyle;
 use ratex_types::path_command::PathCommand;
@@ -360,6 +360,8 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
             col_separation_type,
             hskip_before_and_after,
             is_cd,
+            tags,
+            leqno,
             ..
         } => {
             if is_cd.unwrap_or(false) {
@@ -374,6 +376,8 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
                     hlines_before_row,
                     col_separation_type.as_deref(),
                     hskip_before_and_after.unwrap_or(false),
+                    tags.as_deref(),
+                    leqno.unwrap_or(false),
                     options,
                 )
             }
@@ -554,6 +558,11 @@ fn layout_node(node: &ParseNode, options: &LayoutOptions) -> LayoutBox {
 
         ParseNode::Verb { body, star, .. } => layout_verb(body, *star, options),
 
+        ParseNode::Tag { tag, .. } => {
+            let text_opts = options.with_style(options.style.text());
+            layout_expression(tag, &text_opts, true)
+        },
+
         // Fallback for unhandled node types: produce empty box
         _ => LayoutBox::new_empty(),
     }
@@ -645,9 +654,27 @@ fn layout_symbol(text: &str, mode: Mode, options: &LayoutOptions) -> LayoutBox {
         }
     }
 
-    let (width, height, depth) = match metrics {
-        Some(m) => (math_glyph_advance_em(&m, mode), m.height, m.depth),
-        None => missing_glyph_metrics_fallback(ch, options),
+    // KaTeX `Main-Regular` has no metrics/cmap for some codepoints (e.g. U+2211) that only exist
+    // in `Size1`/`Size2`. `\@char` yields `textord`, so we still rasterize via the normal lookup
+    // chain (unicode fallback when Main has no glyph). Using `missing_glyph_metrics_fallback`
+    // (0.5em wide) then clips the real fallback outline in PNG/SVG — borrow Size-font TeX metrics
+    // for the box only, without switching `font_id`.
+    let (width, height, depth) = if let Some(m) = metrics {
+        (math_glyph_advance_em(&m, mode), m.height, m.depth)
+    } else if mode == Mode::Math {
+        let size_font = if options.style.is_display() {
+            FontId::Size2Regular
+        } else {
+            FontId::Size1Regular
+        };
+        match get_char_metrics(size_font, char_code)
+            .or_else(|| get_char_metrics(FontId::Size1Regular, char_code))
+        {
+            Some(m) => (math_glyph_advance_em(&m, mode), m.height, m.depth),
+            None => missing_glyph_metrics_fallback(ch, options),
+        }
+    } else {
+        missing_glyph_metrics_fallback(ch, options)
     };
 
     LayoutBox {
@@ -2343,6 +2370,8 @@ fn layout_array(
     hlines: &[Vec<bool>],
     col_sep_type: Option<&str>,
     hskip: bool,
+    tags: Option<&[ArrayTag]>,
+    _leqno: bool,
     options: &LayoutOptions,
 ) -> LayoutBox {
     let metrics = options.metrics();
@@ -2521,10 +2550,36 @@ fn layout_array(
     // Extra x padding before col 0 and after last col (hskip_before_and_after).
     let content_x_offset = if hskip { col_gap / 2.0 } else { 0.0 };
 
-    // Total width including outer padding.
-    let total_width: f64 = col_widths.iter().sum::<f64>()
+    // Width of the cell grid including horizontal padding (no tag column).
+    let array_inner_width: f64 = col_widths.iter().sum::<f64>()
         + col_gap * (num_cols.saturating_sub(1)) as f64
         + 2.0 * content_x_offset;
+
+    let mut row_tag_boxes: Vec<Option<LayoutBox>> = (0..num_rows).map(|_| None).collect();
+    let mut tag_col_width = 0.0_f64;
+    let text_opts = options.with_style(options.style.text());
+    if let Some(tag_slice) = tags {
+        if tag_slice.len() == num_rows {
+            for (r, t) in tag_slice.iter().enumerate() {
+                if let ArrayTag::Explicit(nodes) = t {
+                    if !nodes.is_empty() {
+                        let tb = layout_expression(nodes, &text_opts, true);
+                        tag_col_width = tag_col_width.max(tb.width);
+                        row_tag_boxes[r] = Some(tb);
+                    }
+                }
+            }
+        }
+    }
+    let tag_gap_em = if tag_col_width > 0.0 {
+        text_opts.metrics().quad
+    } else {
+        0.0
+    };
+    // leqno (tags on the left) is parsed but not yet laid out; keep tags on the right.
+    let tags_left = false;
+
+    let total_width = array_inner_width + tag_gap_em + tag_col_width;
 
     let height = offset;
     let depth = total_height - offset;
@@ -2546,6 +2601,11 @@ fn layout_array(
             hlines_before_row,
             rule_thickness,
             double_rule_sep,
+            array_inner_width,
+            tag_gap_em,
+            tag_col_width,
+            row_tags: row_tag_boxes,
+            tags_left,
         },
         color: options.color,
     }
@@ -2981,7 +3041,7 @@ fn layout_font(font: &str, body: &ParseNode, options: &LayoutOptions) -> LayoutB
     let font_id = match font {
         "mathrm" | "\\mathrm" | "textrm" | "\\textrm" | "rm" | "\\rm" => Some(FontId::MainRegular),
         "mathbf" | "\\mathbf" | "textbf" | "\\textbf" | "bf" | "\\bf" => Some(FontId::MainBold),
-        "mathit" | "\\mathit" | "textit" | "\\textit" => Some(FontId::MainItalic),
+        "mathit" | "\\mathit" | "textit" | "\\textit" | "\\emph" => Some(FontId::MainItalic),
         "mathsf" | "\\mathsf" | "textsf" | "\\textsf" => Some(FontId::SansSerifRegular),
         "mathtt" | "\\mathtt" | "texttt" | "\\texttt" => Some(FontId::TypewriterRegular),
         "mathcal" | "\\mathcal" | "cal" | "\\cal" => Some(FontId::CaligraphicRegular),
@@ -3022,17 +3082,18 @@ fn layout_with_font(node: &ParseNode, font_id: FontId, options: &LayoutOptions) 
             }
             layout_supsub(base.as_deref(), sup.as_deref(), sub.as_deref(), options, Some(font_id))
         }
-        ParseNode::MathOrd { text, .. }
-        | ParseNode::TextOrd { text, .. }
-        | ParseNode::Atom { text, .. } => {
-            let ch = resolve_symbol_char(text, Mode::Math);
+        ParseNode::MathOrd { text, mode, .. }
+        | ParseNode::TextOrd { text, mode, .. }
+        | ParseNode::Atom { text, mode, .. } => {
+            let ch = resolve_symbol_char(text, *mode);
             let char_code = ch as u32;
             let metric_cp = ratex_font::font_and_metric_for_mathematical_alphanumeric(char_code)
                 .map(|(_, m)| m)
                 .unwrap_or(char_code);
             if let Some(m) = get_char_metrics(font_id, metric_cp) {
                 LayoutBox {
-                    width: math_glyph_advance_em(&m, Mode::Math),
+                    // Text mode: no italic correction (it's a typographic hint for math sub/sup).
+                    width: math_glyph_advance_em(&m, *mode),
                     height: m.height,
                     depth: m.depth,
                     content: BoxContent::Glyph { font_id, char_code },
@@ -4408,6 +4469,11 @@ fn layout_cd(body: &[Vec<ParseNode>], options: &LayoutOptions) -> LayoutBox {
             hlines_before_row,
             rule_thickness: 0.04 * pt,
             double_rule_sep: metrics.double_rule_sep,
+            array_inner_width: total_width,
+            tag_gap_em: 0.0,
+            tag_col_width: 0.0,
+            row_tags: (0..num_rows).map(|_| None).collect(),
+            tags_left: false,
         },
         color: options.color,
     }

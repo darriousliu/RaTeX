@@ -4,7 +4,7 @@ use ratex_lexer::token::Token;
 
 use crate::error::{ParseError, ParseResult};
 use crate::macro_expander::MacroDefinition;
-use crate::parse_node::{AlignSpec, AlignType, Measurement, Mode, ParseNode, StyleStr};
+use crate::parse_node::{AlignSpec, AlignType, ArrayTag, Measurement, Mode, ParseNode, StyleStr};
 use crate::parser::Parser;
 
 // ── Environment registry ─────────────────────────────────────────────────
@@ -60,6 +60,59 @@ pub struct ArrayConfig {
 
 
 // ── parseArray ───────────────────────────────────────────────────────────
+
+/// Pull a trailing `\\tag{…}` off the last cell of a row (amsmath semantics).
+fn extract_trailing_tag_from_last_cell(row: &mut [ParseNode]) -> ParseResult<ArrayTag> {
+    let Some(last) = row.last_mut() else {
+        return Ok(ArrayTag::Auto(false));
+    };
+
+    let inner: &mut ParseNode = match last {
+        ParseNode::Styling { body, .. } => {
+            if body.len() != 1 {
+                return Ok(ArrayTag::Auto(false));
+            }
+            &mut body[0]
+        }
+        _ => last,
+    };
+
+    let obody = match inner {
+        ParseNode::OrdGroup { body, .. } => body,
+        _ => return Ok(ArrayTag::Auto(false)),
+    };
+
+    let tag_indices: Vec<usize> = obody
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| matches!(n, ParseNode::Tag { .. }))
+        .map(|(i, _)| i)
+        .collect();
+
+    if tag_indices.is_empty() {
+        return Ok(ArrayTag::Auto(false));
+    }
+    if tag_indices.len() > 1 {
+        return Err(ParseError::msg("Multiple \\tag in a row"));
+    }
+    let idx = tag_indices[0];
+    if idx != obody.len() - 1 {
+        return Err(ParseError::msg(
+            "\\tag must appear at the end of the row after the equation body",
+        ));
+    }
+
+    match obody.pop() {
+        Some(ParseNode::Tag { tag, .. }) => {
+            if tag.is_empty() {
+                Ok(ArrayTag::Auto(false))
+            } else {
+                Ok(ArrayTag::Explicit(tag))
+            }
+        }
+        _ => Ok(ArrayTag::Auto(false)),
+    }
+}
 
 fn get_hlines(parser: &mut Parser) -> ParseResult<Vec<bool>> {
     let mut hline_info = Vec::new();
@@ -122,6 +175,7 @@ pub fn parse_array(
 
     let mut row: Vec<ParseNode> = Vec::new();
     let mut body: Vec<Vec<ParseNode>> = Vec::new();
+    let mut row_tags: Vec<ArrayTag> = Vec::new();
     let mut row_gaps: Vec<Option<Measurement>> = Vec::new();
     let mut hlines_before_row: Vec<Vec<bool>> = Vec::new();
 
@@ -184,12 +238,15 @@ pub fn parse_array(
                 false
             };
 
+            let row_tag = extract_trailing_tag_from_last_cell(&mut row)?;
+            row_tags.push(row_tag);
             body.push(row);
 
             if is_empty_trailing
                 && (body.len() > 1 || !config.empty_single_row)
             {
                 body.pop();
+                row_tags.pop();
             }
 
             if hlines_before_row.len() < body.len() + 1 {
@@ -212,6 +269,8 @@ pub fn parse_array(
             });
             row_gaps.push(gap);
 
+            let row_tag = extract_trailing_tag_from_last_cell(&mut row)?;
+            row_tags.push(row_tag);
             body.push(row);
             hlines_before_row.push(get_hlines(parser)?);
             row = Vec::new();
@@ -226,6 +285,14 @@ pub fn parse_array(
     parser.gullet.end_group();
     parser.gullet.end_group();
 
+    let tags = if row_tags.iter().any(|t| {
+        matches!(t, ArrayTag::Explicit(nodes) if !nodes.is_empty())
+    }) {
+        Some(row_tags)
+    } else {
+        None
+    };
+
     Ok(ParseNode::Array {
         mode: parser.mode,
         body,
@@ -236,7 +303,7 @@ pub fn parse_array(
         hskip_before_and_after: config.hskip_before_and_after,
         add_jot: config.add_jot,
         arraystretch,
-        tags: None,
+        tags,
         leqno: config.leqno,
         is_cd: None,
         loc: None,
