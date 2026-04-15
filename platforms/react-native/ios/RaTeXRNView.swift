@@ -16,18 +16,36 @@ public class RaTeXRNView: UIView {
 
     @objc public var latex: String {
         get { innerView.latex }
-        set { innerView.latex = newValue }
+        set {
+            innerView.latex = newValue
+            lastReportedContentSize = .zero
+            innerView.invalidateIntrinsicContentSize()
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
     }
 
     @objc public var fontSize: CGFloat {
         get { innerView.fontSize }
-        set { innerView.fontSize = newValue }
+        set {
+            innerView.fontSize = newValue
+            lastReportedContentSize = .zero
+            innerView.invalidateIntrinsicContentSize()
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
     }
 
     /// `true` (default) = display/block style; `false` = inline/text style.
     @objc public var displayMode: Bool {
         get { innerView.displayMode }
-        set { innerView.displayMode = newValue }
+        set {
+            innerView.displayMode = newValue
+            lastReportedContentSize = .zero
+            innerView.invalidateIntrinsicContentSize()
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
     }
 
     /// Old-arch event block set by React Native via KVC.
@@ -51,16 +69,33 @@ public class RaTeXRNView: UIView {
     }
 
     /// Old-arch: set by RN via KVC. Called with @{ @"width": @(w), @"height": @(h) }.
-    @objc public var onContentSizeChange: ((NSDictionary?) -> Void)?
+    @objc public var onContentSizeChange: ((NSDictionary?) -> Void)? {
+        didSet {
+            // Fast Refresh can remount JS without remounting the native view.
+            // Reset so the next layout pass re-emits size to the new JS listener.
+            lastReportedContentSize = .zero
+            setNeedsLayout()
+        }
+    }
 
     /// New-arch: set by ComponentView to dispatch content size events.
     @objc public func setContentSizeCallback(_ handler: ((CGFloat, CGFloat) -> Void)?) {
         contentSizeCallback = handler
+        lastReportedContentSize = .zero
+        setNeedsLayout()
     }
     private var contentSizeCallback: ((CGFloat, CGFloat) -> Void)?
 
     /// Last size we reported to avoid duplicate events.
     private var lastReportedContentSize: CGSize = .zero
+
+    /// Force the next layout pass to emit a content size event even if the size
+    /// hasn't changed. This is important for Fast Refresh / remount scenarios
+    /// where JS listeners are replaced but the native view instance is reused.
+    @objc public func resetContentSizeReporting() {
+        lastReportedContentSize = .zero
+        setNeedsLayout()
+    }
 
     // MARK: - Init
 

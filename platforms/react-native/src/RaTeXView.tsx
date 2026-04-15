@@ -1,4 +1,5 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
+import {StyleSheet} from 'react-native';
 import type {StyleProp, ViewStyle} from 'react-native';
 import RaTeXViewNativeComponent from './RaTeXViewNativeComponent';
 
@@ -28,6 +29,12 @@ export function RaTeXView({
     height: number;
   } | null>(null);
 
+  // When inputs change, drop the cached measurement so the view can shrink/grow
+  // immediately instead of keeping a stale width/height until the next event arrives.
+  useEffect(() => {
+    setContentSize(null);
+  }, [latex, fontSize, displayMode]);
+
   const handleContentSizeChange = useCallback(
     (e: {nativeEvent: {width: number; height: number}}) => {
       setContentSize({
@@ -39,8 +46,20 @@ export function RaTeXView({
     [onContentSizeChange],
   );
 
+  // Respect explicit width/height from user styles.
+  // Auto-apply measured size only when width/height are not provided.
+  const flatStyle = StyleSheet.flatten(style) as ViewStyle | undefined;
+  const hasWidth = typeof flatStyle?.width === 'number';
+  const hasHeight = typeof flatStyle?.height === 'number';
+
   const resolvedStyle = contentSize
-    ? [style, {width: contentSize.width, height: contentSize.height}]
+    ? [
+        style,
+        {
+          ...(hasWidth ? {} : {width: contentSize.width}),
+          ...(hasHeight ? {} : {height: contentSize.height}),
+        },
+      ]
     : style;
 
   return (

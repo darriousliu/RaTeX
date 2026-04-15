@@ -54,4 +54,9 @@ class RaTeXViewManager(private val reactContext: ReactApplicationContext) :
     override fun setFontSize(view: RaTeXView, value: Float) {
         view.fontSize = value
     }
+
+    @ReactProp(name = "displayMode", defaultBoolean = true)
+    override fun setDisplayMode(view: RaTeXView, value: Boolean) {
+        view.displayMode = value
+    }
 }

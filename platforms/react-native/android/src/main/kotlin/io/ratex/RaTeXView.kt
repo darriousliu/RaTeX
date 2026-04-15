@@ -6,6 +6,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.util.AttributeSet
 import android.view.View
+import kotlin.math.max
+import kotlin.math.min
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -86,17 +88,50 @@ class RaTeXView @JvmOverloads constructor(
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val r = renderer
-        if (r == null) {
-            setMeasuredDimension(0, 0)
-        } else {
-            setMeasuredDimension(r.widthPx.toInt(), r.totalHeightPx.toInt())
-        }
+        val desiredWidth = max(
+            (r?.widthPx?.toInt() ?: 0) + paddingLeft + paddingRight,
+            suggestedMinimumWidth,
+        )
+        val desiredHeight = max(
+            (r?.totalHeightPx?.toInt() ?: 0) + paddingTop + paddingBottom,
+            suggestedMinimumHeight,
+        )
+
+        // Respect parent / RN layout constraints (e.g. style={{width,height}}).
+        val measuredWidth = resolveSize(desiredWidth, widthMeasureSpec)
+        val measuredHeight = resolveSize(desiredHeight, heightMeasureSpec)
+        setMeasuredDimension(measuredWidth, measuredHeight)
     }
 
     // MARK: - Draw
 
     override fun onDraw(canvas: Canvas) {
-        renderer?.draw(canvas)
+        val r = renderer ?: return
+
+        val availW = (width - paddingLeft - paddingRight).toFloat().coerceAtLeast(0f)
+        val availH = (height - paddingTop - paddingBottom).toFloat().coerceAtLeast(0f)
+        val contentW = r.widthPx
+        val contentH = r.totalHeightPx
+
+        // Clip to the view bounds so explicit style sizes behave predictably.
+        canvas.save()
+        canvas.clipRect(0, 0, width, height)
+
+        // Scale down to fit within the explicit layout size (never scale up).
+        val sx = if (contentW > 0f) availW / contentW else 1f
+        val sy = if (contentH > 0f) availH / contentH else 1f
+        val scale = min(1f, min(sx, sy))
+
+        val scaledW = contentW * scale
+        val scaledH = contentH * scale
+
+        val dx = paddingLeft + ((availW - scaledW) / 2f).coerceAtLeast(0f)
+        val dy = paddingTop + ((availH - scaledH) / 2f).coerceAtLeast(0f)
+
+        canvas.translate(dx, dy)
+        canvas.scale(scale, scale)
+        r.draw(canvas)
+        canvas.restore()
     }
 
     // MARK: - Lifecycle
