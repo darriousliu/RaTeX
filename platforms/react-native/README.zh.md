@@ -85,7 +85,7 @@ function Paragraph() {
 | `displayMode` | `boolean` | `true` | `true` = 独立块样式（`$$...$$`）；`false` = 行内样式（`$...$`）。 |
 | `style` | `StyleProp<ViewStyle>` | — | 标准 React Native 样式。宽高会自动从测量结果设置，也可手动覆盖。 |
 | `onError` | `(e: { nativeEvent: { error: string } }) => void` | — | LaTeX 字符串解析失败时调用。 |
-| `onContentSizeChange` | `(e: { nativeEvent: { width: number; height: number } }) => void` | — | 排版完成后回调，携带公式渲染尺寸（dp）。适用于滚动视图或动态容器。 |
+| `onContentSizeChange` | `(e: { nativeEvent: { width: number; height: number } }) => void` | — | 排版完成后回调，携带公式的**固有内容尺寸（未缩放）**（dp）。适用于滚动视图或动态容器。 |
 
 ### 内容尺寸自适应
 
@@ -96,6 +96,10 @@ function Paragraph() {
   <RaTeXView latex="\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}" fontSize={28} />
 </ScrollView>
 ```
+
+#### 显式指定宽高时的行为
+
+如果你在 `style` 中显式指定了 `width` 和/或 `height`，`RaTeXView` **不会**再用测量结果覆盖这些值；原生视图会在绘制阶段把公式**按比例缩小（不会放大）**以适配给定布局尺寸，并在必要时按边界裁剪。
 
 ### `<InlineTeX />`
 

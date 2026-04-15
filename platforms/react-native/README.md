@@ -85,7 +85,7 @@ Use `$...$` delimiters anywhere inside the `content` string. Multiple formulas i
 | `displayMode` | `boolean` | `true` | `true` = display/block style (`$$...$$`); `false` = inline/text style (`$...$`). |
 | `style` | `StyleProp<ViewStyle>` | — | Standard React Native style. Width and height are automatically set from measured content unless overridden. |
 | `onError` | `(e: { nativeEvent: { error: string } }) => void` | — | Called when the LaTeX string fails to parse. |
-| `onContentSizeChange` | `(e: { nativeEvent: { width: number; height: number } }) => void` | — | Called after layout with the formula's rendered dimensions in dp. Useful for scroll views or dynamic containers. |
+| `onContentSizeChange` | `(e: { nativeEvent: { width: number; height: number } }) => void` | — | Called after layout with the formula's **intrinsic (unscaled) content size** in dp. Useful for scroll views or dynamic containers. |
 
 ### Content size auto-sizing
 
@@ -96,6 +96,10 @@ Use `$...$` delimiters anywhere inside the `content` string. Multiple formulas i
   <RaTeXView latex="\sum_{n=1}^{\infty} \frac{1}{n^2} = \frac{\pi^2}{6}" fontSize={28} />
 </ScrollView>
 ```
+
+#### Explicit width/height behavior
+
+If you explicitly provide `style.width` and/or `style.height`, `RaTeXView` will **not** override those values with measurements. Instead, the native view will scale the formula down (never up) to fit the assigned layout size and clip to bounds when necessary.
 
 ### `<InlineTeX />`
 

@@ -48,19 +48,14 @@ class RaTeXViewManager(private val reactContext: ReactApplicationContext) :
         view.fontSize = value
     }
 
-    override fun getExportedCustomBubblingEventTypeConstants(): Map<String, Any> =
+    @ReactProp(name = "displayMode", defaultBoolean = true)
+    fun setDisplayMode(view: RaTeXView, value: Boolean) {
+        view.displayMode = value
+    }
+
+    override fun getExportedCustomDirectEventTypeConstants(): Map<String, Any> =
         mapOf(
-            "topError" to mapOf(
-                "phasedRegistrationNames" to mapOf(
-                    "bubbled" to "onError",
-                    "captured" to "onErrorCapture",
-                )
-            ),
-            "topContentSizeChange" to mapOf(
-                "phasedRegistrationNames" to mapOf(
-                    "bubbled" to "onContentSizeChange",
-                    "captured" to "onContentSizeChangeCapture",
-                )
-            )
+            "topError" to mapOf("registrationName" to "onError"),
+            "topContentSizeChange" to mapOf("registrationName" to "onContentSizeChange"),
         )
 }

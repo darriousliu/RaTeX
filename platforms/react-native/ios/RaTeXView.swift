@@ -67,7 +67,29 @@ public class RaTeXView: UIView {
 
     public override func draw(_ rect: CGRect) {
         guard let renderer, let ctx = UIGraphicsGetCurrentContext() else { return }
+
+        let contentW = renderer.width
+        let contentH = renderer.totalHeight
+        let availW = max(0, bounds.width)
+        let availH = max(0, bounds.height)
+
+        ctx.saveGState()
+        ctx.clip(to: bounds)
+
+        // Scale down to fit in the assigned layout size; never scale up.
+        let sx: CGFloat = contentW > 0 ? (availW / contentW) : 1
+        let sy: CGFloat = contentH > 0 ? (availH / contentH) : 1
+        let scale = min(1, min(sx, sy))
+
+        let scaledW = contentW * scale
+        let scaledH = contentH * scale
+        let dx = max(0, (availW - scaledW) / 2)
+        let dy = max(0, (availH - scaledH) / 2)
+
+        ctx.translateBy(x: dx, y: dy)
+        ctx.scaleBy(x: scale, y: scale)
         renderer.draw(in: ctx)
+        ctx.restoreGState()
     }
 
     // MARK: Private

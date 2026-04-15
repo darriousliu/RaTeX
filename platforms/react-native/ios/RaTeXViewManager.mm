@@ -92,7 +92,23 @@ using namespace facebook::react;
     _nativeView.fontSize = fontSize;
   }
 
+  BOOL displayMode = newProps.displayMode ? YES : NO;
+  if (displayMode != _nativeView.displayMode) {
+    _nativeView.displayMode = displayMode;
+  }
+
   [super updateProps:props oldProps:oldProps];
+}
+
+// When JS remounts (e.g. Fast Refresh or key changes), Fabric can reuse the same
+// native view instance but swap the EventEmitter. If props don't change, the
+// view would not re-emit content size, causing JS-side auto-sizing to get stuck.
+- (void)updateEventEmitter:(EventEmitter::Shared const &)eventEmitter
+{
+  [super updateEventEmitter:eventEmitter];
+  if (_nativeView) {
+    [_nativeView resetContentSizeReporting];
+  }
 }
 
 @end
@@ -119,6 +135,7 @@ RCT_EXPORT_MODULE(RaTeXView)
 
 RCT_EXPORT_VIEW_PROPERTY(latex, NSString)
 RCT_EXPORT_VIEW_PROPERTY(fontSize, CGFloat)
+RCT_EXPORT_VIEW_PROPERTY(displayMode, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onContentSizeChange, RCTDirectEventBlock)
 
