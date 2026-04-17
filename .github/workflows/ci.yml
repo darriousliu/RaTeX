@@ -28,6 +28,12 @@ jobs:
         run: cargo test -p ratex-svg --features standalone
       - name: Clippy ratex-svg standalone
         run: cargo clippy -p ratex-svg --features standalone -- -D warnings
+      - name: Check embed-fonts (crates.io–safe font paths)
+        run: |
+          cargo check -p ratex-svg --features standalone,embed-fonts
+          cargo check -p ratex-render --features embed-fonts
+      - name: Package ratex-katex-fonts (verify tarball includes fonts/)
+        run: cargo package -p ratex-katex-fonts
 
   web-wasm-build:
     runs-on: ubuntu-latest

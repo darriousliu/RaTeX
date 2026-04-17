@@ -26,6 +26,7 @@ RaTeX/
 │   ├── ratex-lexer/               # LaTeX → token stream
 │   ├── ratex-parser/             # Token stream → ParseNode AST
 │   ├── ratex-layout/             # AST → LayoutBox → DisplayList
+│   ├── ratex-katex-fonts/        # KaTeX TTF blobs for embed-fonts (crates.io–safe path)
 │   ├── ratex-ffi/                # C ABI: LaTeX → DisplayList JSON (+ Android JNI)
 │   ├── ratex-render/             # DisplayList → PNG (tiny-skia, server-side)
 │   ├── ratex-wasm/               # WASM: LaTeX → DisplayList JSON (browser)
@@ -61,6 +62,7 @@ RaTeX/
 │
 ├── scripts/
 │   ├── set-version.sh             # Sync version to all platform manifests
+│   ├── sync-katex-ttf-to-font-crate.sh  # Copy KaTeX *.ttf → crates/ratex-katex-fonts/fonts/
 │   └── update_golden_output.sh    # Renders all test_cases.txt → output/
 │
 └── demo/                         # Web demo + sample apps (web, ios, android, flutter, RN, jvm)
@@ -79,6 +81,7 @@ members = [
     "crates/ratex-lexer",
     "crates/ratex-parser",
     "crates/ratex-layout",
+    "crates/ratex-katex-fonts",
     "crates/ratex-ffi",
     "crates/ratex-render",
     "crates/ratex-svg",
@@ -117,10 +120,11 @@ serde_json = "1.0"
 | **ratex-lexer** | LaTeX string → token stream |
 | **ratex-parser** | Token stream → ParseNode AST (macro expansion, functions) |
 | **ratex-layout** | AST → LayoutBox tree → `to_display_list` → DisplayList |
+| **ratex-katex-fonts** | Bundled KaTeX `.ttf` files + embed API; optional dep for `ratex-svg` / `ratex-render` `embed-fonts` |
 | **ratex-ffi** | C ABI: `ratex_parse_and_layout` → DisplayList JSON; Android `jni` module when targeting Android |
-| **ratex-render** | DisplayList → PNG via tiny-skia + ab_glyph (server/CI) |
+| **ratex-render** | DisplayList → PNG via tiny-skia + ab_glyph (server/CI); `embed-fonts` uses `ratex-katex-fonts` |
 | **ratex-wasm** | WASM: parse + layout → DisplayList JSON for browser |
-| **ratex-svg** | SVG export: DisplayList → SVG string; `standalone` feature embeds glyph `<path>` outlines from KaTeX TTF files; `cli` feature adds `render-svg` binary |
+| **ratex-svg** | SVG export: DisplayList → SVG string; `standalone` reads TTF from `font_dir`; `embed-fonts` uses `ratex-katex-fonts`; `cli` adds `render-svg` binary |
 
 ---
 

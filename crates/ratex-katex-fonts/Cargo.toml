@@ -1,0 +1,13 @@
+[package]
+name = "ratex-katex-fonts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "KaTeX TTF fonts embedded for RaTeX (optional embed-fonts support)"
+readme = "README.md"
+
+[dependencies]
+rust-embed = { workspace = true }

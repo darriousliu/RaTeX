@@ -5,11 +5,6 @@ use std::collections::HashMap;
 use ab_glyph::{Font, FontRef, OutlineCurve};
 use ratex_font::FontId;
 
-#[cfg(feature = "embed-fonts")]
-#[derive(rust_embed::Embed)]
-#[folder = "../../fonts/"]
-struct Fonts;
-
 #[allow(unused_variables)]
 pub(crate) fn load_all_fonts(font_dir: &str) -> Result<HashMap<FontId, Vec<u8>>, String> {
     let mut data = HashMap::new();
@@ -55,9 +50,9 @@ pub(crate) fn load_all_fonts(font_dir: &str) -> Result<HashMap<FontId, Vec<u8>>,
     #[cfg(feature = "embed-fonts")]
     {
         for (id, filename) in &font_map {
-            let font = Fonts::get(filename)
+            let font = ratex_katex_fonts::ttf_bytes(filename)
                 .ok_or_else(|| format!("Failed to get embeded font {filename}"))?;
-            data.insert(*id, font.data.to_vec());
+            data.insert(*id, font.to_vec());
         }
     }
 
