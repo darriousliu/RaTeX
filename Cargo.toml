@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["RaTeX Contributors"]
 license = "MIT"
@@ -23,13 +23,13 @@ homepage = "https://github.com/erweixin/RaTeX"
 documentation = "https://github.com/erweixin/RaTeX#readme"
 
 [workspace.dependencies]
-ratex-types  = { path = "crates/ratex-types", version = "0.1.1" }
-ratex-font   = { path = "crates/ratex-font", version = "0.1.1" }
-ratex-lexer  = { path = "crates/ratex-lexer", version = "0.1.1" }
-ratex-parser = { path = "crates/ratex-parser", version = "0.1.1" }
-ratex-layout = { path = "crates/ratex-layout", version = "0.1.1" }
-ratex-katex-fonts = { path = "crates/ratex-katex-fonts", version = "0.1.1" }
-ratex-svg    = { path = "crates/ratex-svg", version = "0.1.1" }
+ratex-types  = { path = "crates/ratex-types", version = "0.1.2" }
+ratex-font   = { path = "crates/ratex-font", version = "0.1.2" }
+ratex-lexer  = { path = "crates/ratex-lexer", version = "0.1.2" }
+ratex-parser = { path = "crates/ratex-parser", version = "0.1.2" }
+ratex-layout = { path = "crates/ratex-layout", version = "0.1.2" }
+ratex-katex-fonts = { path = "crates/ratex-katex-fonts", version = "0.1.2" }
+ratex-svg    = { path = "crates/ratex-svg", version = "0.1.2" }
 
 phf        = { version = "0.11", features = ["macros"] }
 thiserror  = "1.0"
