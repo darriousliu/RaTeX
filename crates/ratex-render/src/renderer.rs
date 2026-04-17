@@ -184,7 +184,7 @@ fn load_all_fonts(font_dir: &str) -> Result<HashMap<FontId, Vec<u8>>, String> {
     {
         for (id, filename) in &font_map {
             let font = ratex_katex_fonts::ttf_bytes(filename)
-                .ok_or_else(|| format!("Failed to get embeded font {filename}"))?;
+                .ok_or_else(|| format!("Failed to get embedded font {filename}"))?;
             data.insert(*id, font.to_vec());
         }
     }
