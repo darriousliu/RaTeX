@@ -587,6 +587,11 @@ fn missing_glyph_width_em(ch: char) -> f64 {
         0xAC00..=0xD7AF => 1.0,
         // Fullwidth ASCII, punctuation, currency
         0xFF01..=0xFF60 | 0xFFE0..=0xFFEE => 1.0,
+        // Emoji / pictographs in supplementary planes (e.g. U+1F60A 😊) and related blocks:
+        // system fallback draws ~one em, same rationale as CJK above (issue #49).
+        0x1F000..=0x1FAFF => 1.0,
+        // Dingbats (many BMP emoji / ornaments lack bundled TeX metrics)
+        0x2700..=0x27BF => 1.0,
         _ => 0.5,
     }
 }
@@ -4519,5 +4524,26 @@ fn horiz_brace_path(width: f64, height: f64, is_over: bool) -> Vec<PathCommand> 
             PathCommand::LineTo { x: width - mid * 0.4, y: q },
             PathCommand::QuadTo { x1: width, y1: q, x: width, y: 0.0 },
         ]
+    }
+}
+
+#[cfg(test)]
+mod missing_glyph_width_em_tests {
+    use super::missing_glyph_width_em;
+
+    #[test]
+    fn supplementary_plane_emoji_is_one_em() {
+        assert_eq!(missing_glyph_width_em('😊'), 1.0);
+        assert_eq!(missing_glyph_width_em('🚀'), 1.0);
+    }
+
+    #[test]
+    fn dingbats_block_is_one_em() {
+        assert_eq!(missing_glyph_width_em('\u{2708}'), 1.0); // AIRPLANE
+    }
+
+    #[test]
+    fn latin_without_metrics_stays_half_em() {
+        assert_eq!(missing_glyph_width_em('z'), 0.5);
     }
 }
