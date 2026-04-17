@@ -596,11 +596,24 @@ fn missing_glyph_width_em(ch: char) -> f64 {
     }
 }
 
+fn missing_glyph_height_em(ch: char, m: &ratex_font::MathConstants) -> f64 {
+    let ru = ch as u32;
+    if (0x1F000..=0x1FAFF).contains(&ru) {
+        // Supplementary-plane emoji: `missing_glyph_width_em` uses ~1em width for raster
+        // parity (#49), but a 0.92·quad tall box inflates `\sqrt` `min_delim_height` past KaTeX’s
+        // threshold so we pick Size1 surd (1em advance) instead of the small surd (0.833em),
+        // visibly widening the gap before the radicand (golden 0955).
+        (m.quad * 0.74).max(m.x_height)
+    } else {
+        (m.quad * 0.92).max(m.x_height)
+    }
+}
+
 fn missing_glyph_metrics_fallback(ch: char, options: &LayoutOptions) -> (f64, f64, f64) {
     let m = get_global_metrics(options.style.size_index());
     let w = missing_glyph_width_em(ch);
     if w >= 0.99 {
-        let h = (m.quad * 0.92).max(m.x_height);
+        let h = missing_glyph_height_em(ch, m);
         (w, h, 0.0)
     } else {
         (w, m.x_height, 0.0)
@@ -4529,12 +4542,25 @@ fn horiz_brace_path(width: f64, height: f64, is_over: bool) -> Vec<PathCommand> 
 
 #[cfg(test)]
 mod missing_glyph_width_em_tests {
-    use super::missing_glyph_width_em;
+    use super::{missing_glyph_height_em, missing_glyph_width_em};
+    use ratex_font::get_global_metrics;
 
     #[test]
     fn supplementary_plane_emoji_is_one_em() {
         assert_eq!(missing_glyph_width_em('😊'), 1.0);
         assert_eq!(missing_glyph_width_em('🚀'), 1.0);
+    }
+
+    #[test]
+    fn supplementary_plane_emoji_uses_shorter_box_height() {
+        let m = get_global_metrics(0);
+        let emoji_h = missing_glyph_height_em('😊', m);
+        let default_h = (m.quad * 0.92).max(m.x_height);
+        assert!(
+            emoji_h < default_h,
+            "tall placeholder box must not push \\sqrt past KaTeX's small-surd threshold"
+        );
+        assert!((emoji_h - 0.74).abs() < 1e-9);
     }
 
     #[test]
