@@ -155,9 +155,9 @@ echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
   --output-dir ./out
 ```
 
-The `standalone` feature (enabled by `cli`) reads KaTeX TTF files and embeds glyph outlines directly into the SVG, producing a fully self-contained file that renders correctly without any CSS or web fonts.
+The `standalone` feature (enabled by `cli`) reads KaTeX TTF files from `--font-dir` and embeds glyph outlines directly into the SVG, producing a fully self-contained file that renders correctly without any CSS or web fonts.
 
-The `embed-fonts` feature (implicitly enables `standalone`) includes the font files in the binary. So no font directory needs to be specified.
+The `embed-fonts` feature (implicitly enables `standalone`) bundles the same TTFs via the [`ratex-katex-fonts`](crates/ratex-katex-fonts) crate, so no `--font-dir` is needed and builds from crates.io stay self-contained. To refresh bundled fonts after upgrading KaTeX, run [`scripts/sync-katex-ttf-to-font-crate.sh`](scripts/sync-katex-ttf-to-font-crate.sh).
 
 ### Browser (WASM)
 

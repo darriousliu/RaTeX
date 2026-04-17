@@ -149,13 +149,18 @@ echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | cargo run --release -p ratex-render
 # 默认模式：字形输出为 <text> 元素（正确显示需要 KaTeX 网络字体）
 echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-svg --features cli
 
-# 自包含模式：将字形轮廓嵌入为 <path>，无需外部字体
+# 自包含模式：从 --font-dir 读取 KaTeX TTF，将字形轮廓嵌入为 <path>
 echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
   cargo run --release -p ratex-svg --features cli -- \
   --font-dir /path/to/katex/fonts --output-dir ./out
+
+# 或使用 embed-fonts：字体来自 workspace 的 ratex-katex-fonts crate，无需 --font-dir（crates.io 发布也可编译）
+echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
+  cargo run --release -p ratex-svg --features "cli embed-fonts" -- \
+  --output-dir ./out
 ```
 
-`standalone` feature（即 `cli` 所依赖的特性）会从 KaTeX TTF 文件中提取字形轮廓并内嵌到 SVG，生成无需任何 CSS 或网络字体即可正确渲染的完全自包含文件。
+`standalone` feature（由 `cli` 启用）会从 `--font-dir` 下的 KaTeX TTF 提取字形轮廓并内嵌到 SVG。若启用 `embed-fonts`，则 TTF 由 [`ratex-katex-fonts`](crates/ratex-katex-fonts) crate 在编译期嵌入，无需指定字体目录；升级 KaTeX 字体后可运行 [`scripts/sync-katex-ttf-to-font-crate.sh`](scripts/sync-katex-ttf-to-font-crate.sh) 同步到该 crate。
 
 ### 在浏览器中使用（WASM）
 

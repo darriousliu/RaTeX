@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 将根目录 VERSION 文件中的版本号同步到所有平台的版本声明文件：
-#   Cargo.toml, platforms/flutter/pubspec.yaml,
+#   Cargo.toml（含 [workspace.package].version 与以 ratex- 开头的 path 依赖版本，如 ratex-katex-fonts）,
+#   platforms/flutter/pubspec.yaml,
 #   platforms/flutter/ios/ratex_flutter.podspec,
 #   platforms/flutter/android/build.gradle,
 #   platforms/flutter/README.md, platforms/flutter/README.zh-CN.md,
@@ -76,4 +77,4 @@ for (const p of ['platforms/web/package.json', 'platforms/react-native/package.j
 }
 "
 
-echo "Done. Updated: Cargo.toml, platforms/flutter/pubspec.yaml, platforms/flutter/ios/ratex_flutter.podspec, platforms/flutter/android/build.gradle, platforms/flutter/README.md, platforms/flutter/README.zh-CN.md, platforms/android/README.md, platforms/android/README.zh-CN.md, demo/android/README.md, platforms/jvm/README.md, platforms/jvm/README.zh-CN.md, demo/flutter/pubspec.yaml, platforms/web/package.json, platforms/react-native/package.json; Android/JVM Maven 使用根目录 VERSION"
+echo "Done. Updated: Cargo.toml (workspace + ratex-* 依赖版本), platforms/flutter/pubspec.yaml, platforms/flutter/ios/ratex_flutter.podspec, platforms/flutter/android/build.gradle, platforms/flutter/README.md, platforms/flutter/README.zh-CN.md, platforms/android/README.md, platforms/android/README.zh-CN.md, demo/android/README.md, platforms/jvm/README.md, platforms/jvm/README.zh-CN.md, demo/flutter/pubspec.yaml, platforms/web/package.json, platforms/react-native/package.json; Android/JVM Maven 使用根目录 VERSION。各 Rust 子 crate 使用 version.workspace = true，无需单独改文件。"

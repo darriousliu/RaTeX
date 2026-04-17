@@ -2,16 +2,18 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# ratex-render / render-svg need KaTeX *.ttf (not only woff). Prefer repo `fonts/`; fall back to
-# katex npm dist when present (e.g. after `npm install` under tools/lexer_compare).
+# ratex-render / render-svg need KaTeX *.ttf (not only woff). Prefer repo `fonts/`; then
+# `crates/ratex-katex-fonts/fonts/` (same files, for clone-without-root-fonts); then katex npm dist.
 MARKER="KaTeX_Main-Regular.ttf"
 if [[ -f "$ROOT/fonts/$MARKER" ]]; then
   FONT_DIR="$ROOT/fonts"
+elif [[ -f "$ROOT/crates/ratex-katex-fonts/fonts/$MARKER" ]]; then
+  FONT_DIR="$ROOT/crates/ratex-katex-fonts/fonts"
 elif [[ -f "$ROOT/tools/lexer_compare/node_modules/katex/dist/fonts/$MARKER" ]]; then
   FONT_DIR="$ROOT/tools/lexer_compare/node_modules/katex/dist/fonts"
 else
   FONT_DIR="$ROOT/fonts"
-  echo "WARNING: $MARKER not found under fonts/ or katex dist; PNG/SVG may fail or use partial fonts." >&2
+  echo "WARNING: $MARKER not found under fonts/, crates/ratex-katex-fonts/fonts/, or katex dist; PNG/SVG may fail or use partial fonts." >&2
 fi
 OUTPUT_DIR="$ROOT/tests/golden/output"
 OUTPUT_CE_DIR="$ROOT/tests/golden/output_ce"
