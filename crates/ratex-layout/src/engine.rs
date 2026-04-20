@@ -587,7 +587,25 @@ fn missing_glyph_width_em(ch: char) -> f64 {
         0xAC00..=0xD7AF => 1.0,
         // Fullwidth ASCII, punctuation, currency
         0xFF01..=0xFF60 | 0xFFE0..=0xFFEE => 1.0,
+        // Emoji / pictographs in supplementary planes (e.g. U+1F60A 😊) and related blocks:
+        // system fallback draws ~one em, same rationale as CJK above (issue #49).
+        0x1F000..=0x1FAFF => 1.0,
+        // Dingbats (many BMP emoji / ornaments lack bundled TeX metrics)
+        0x2700..=0x27BF => 1.0,
         _ => 0.5,
+    }
+}
+
+fn missing_glyph_height_em(ch: char, m: &ratex_font::MathConstants) -> f64 {
+    let ru = ch as u32;
+    if (0x1F000..=0x1FAFF).contains(&ru) {
+        // Supplementary-plane emoji: `missing_glyph_width_em` uses ~1em width for raster
+        // parity (#49), but a 0.92·quad tall box inflates `\sqrt` `min_delim_height` past KaTeX’s
+        // threshold so we pick Size1 surd (1em advance) instead of the small surd (0.833em),
+        // visibly widening the gap before the radicand (golden 0955).
+        (m.quad * 0.74).max(m.x_height)
+    } else {
+        (m.quad * 0.92).max(m.x_height)
     }
 }
 
@@ -595,7 +613,7 @@ fn missing_glyph_metrics_fallback(ch: char, options: &LayoutOptions) -> (f64, f6
     let m = get_global_metrics(options.style.size_index());
     let w = missing_glyph_width_em(ch);
     if w >= 0.99 {
-        let h = (m.quad * 0.92).max(m.x_height);
+        let h = missing_glyph_height_em(ch, m);
         (w, h, 0.0)
     } else {
         (w, m.x_height, 0.0)
@@ -4519,5 +4537,39 @@ fn horiz_brace_path(width: f64, height: f64, is_over: bool) -> Vec<PathCommand> 
             PathCommand::LineTo { x: width - mid * 0.4, y: q },
             PathCommand::QuadTo { x1: width, y1: q, x: width, y: 0.0 },
         ]
+    }
+}
+
+#[cfg(test)]
+mod missing_glyph_width_em_tests {
+    use super::{missing_glyph_height_em, missing_glyph_width_em};
+    use ratex_font::get_global_metrics;
+
+    #[test]
+    fn supplementary_plane_emoji_is_one_em() {
+        assert_eq!(missing_glyph_width_em('😊'), 1.0);
+        assert_eq!(missing_glyph_width_em('🚀'), 1.0);
+    }
+
+    #[test]
+    fn supplementary_plane_emoji_uses_shorter_box_height() {
+        let m = get_global_metrics(0);
+        let emoji_h = missing_glyph_height_em('😊', m);
+        let default_h = (m.quad * 0.92).max(m.x_height);
+        assert!(
+            emoji_h < default_h,
+            "tall placeholder box must not push \\sqrt past KaTeX's small-surd threshold"
+        );
+        assert!((emoji_h - 0.74).abs() < 1e-9);
+    }
+
+    #[test]
+    fn dingbats_block_is_one_em() {
+        assert_eq!(missing_glyph_width_em('\u{2708}'), 1.0); // AIRPLANE
+    }
+
+    #[test]
+    fn latin_without_metrics_stays_half_em() {
+        assert_eq!(missing_glyph_width_em('z'), 0.5);
     }
 }
