@@ -48,6 +48,17 @@ public class RaTeXRNView: UIView {
         }
     }
 
+    @objc public var color: UIColor? {
+        get { innerView.color }
+        set {
+            innerView.color = newValue ?? .black
+            lastReportedContentSize = .zero
+            innerView.invalidateIntrinsicContentSize()
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
+    }
+
     /// Old-arch event block set by React Native via KVC.
     /// When called, passes `{ "error": "<message>" }` as the body.
     @objc public var onError: ((NSDictionary?) -> Void)? {

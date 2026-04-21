@@ -14,7 +14,7 @@
 //!
 //! # Usage (C)
 //! ```c
-//! RatexOptions opts = { sizeof(RatexOptions), 1 };  // display_mode=1 (block)
+//! RatexOptions opts = { sizeof(RatexOptions), 1, {0, 0, 0, 1} };  // display_mode=1 (block)
 //! RatexResult result = ratex_parse_and_layout("\\frac{1}{2}", &opts);
 //! if (result.error_code == 0) {
 //!     // consume result.data ...
@@ -82,9 +82,9 @@ fn sanitize_json_numbers(v: Value) -> Value {
     }
 }
 
-fn do_layout(latex_str: &str, style: MathStyle) -> Result<String, String> {
+fn do_layout(latex_str: &str, style: MathStyle, color: ratex_types::color::Color) -> Result<String, String> {
     let nodes = parse(latex_str).map_err(|e| format!("parse error: {e}"))?;
-    let options = LayoutOptions::default().with_style(style);
+    let options = LayoutOptions::default().with_style(style).with_color(color);
     let layout_box = layout(&nodes, &options);
     let display_list = to_display_list(&layout_box);
     let value = serde_json::to_value(&display_list).map_err(|e| format!("serialization error: {e}"))?;
@@ -105,6 +105,30 @@ fn do_layout(latex_str: &str, style: MathStyle) -> Result<String, String> {
 /// Always set `struct_size = sizeof(RatexOptions)` before passing to the function.
 /// Fields beyond `struct_size` are ignored, enabling forward compatibility.
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct RatexColor {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl RatexColor {
+    pub const BLACK: Self = Self {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 1.0,
+    };
+}
+
+impl From<RatexColor> for ratex_types::color::Color {
+    fn from(value: RatexColor) -> Self {
+        Self::new(value.r, value.g, value.b, value.a)
+    }
+}
+
+#[repr(C)]
 pub struct RatexOptions {
     /// Must be set to `sizeof(RatexOptions)` by the caller.
     pub struct_size: usize,
@@ -112,6 +136,11 @@ pub struct RatexOptions {
     /// - `0` — inline (text style, equivalent to `$...$`)
     /// - `1` — display block (display style, equivalent to `$$...$$`)
     pub display_mode: c_int,
+    /// Default formula color, in normalized RGBA.
+    ///
+    /// Explicit LaTeX color commands like `\color{...}` / `\textcolor{...}{...}`
+    /// still override this per subtree.
+    pub color: RatexColor,
 }
 
 /// Result returned by [`ratex_parse_and_layout`].
@@ -173,7 +202,21 @@ pub unsafe extern "C" fn ratex_parse_and_layout(
         }
     };
 
-    match do_layout(latex_str, style) {
+    let color = if opts.is_null() {
+        ratex_types::color::Color::BLACK
+    } else {
+        let opts_ref = unsafe { &*opts };
+        let color_size = std::mem::offset_of!(RatexOptions, color)
+            + std::mem::size_of::<RatexColor>();
+
+        if opts_ref.struct_size >= color_size {
+            opts_ref.color.into()
+        } else {
+            ratex_types::color::Color::BLACK
+        }
+    };
+
+    match do_layout(latex_str, style, color) {
         Ok(json) => match CString::new(json) {
             Ok(cs) => RatexResult { data: cs.into_raw(), error_code: 0 },
             Err(e) => err_result(&format!("JSON contains interior null byte: {e}")),
@@ -224,6 +267,7 @@ mod tests {
         let opts = RatexOptions {
             struct_size: std::mem::size_of::<RatexOptions>(),
             display_mode,
+            color: RatexColor::BLACK,
         };
         let result = unsafe { ratex_parse_and_layout(input.as_ptr(), &opts) };
         if result.error_code != 0 || result.data.is_null() {
@@ -261,6 +305,7 @@ mod tests {
         let opts = RatexOptions {
             struct_size: std::mem::size_of::<RatexOptions>(),
             display_mode: 1,
+            color: RatexColor::BLACK,
         };
         let result = unsafe { ratex_parse_and_layout(std::ptr::null(), &opts) };
         assert_ne!(result.error_code, 0);
@@ -292,5 +337,66 @@ mod tests {
             let err = ratex_get_last_error();
             assert!(!err.is_null());
         }
+    }
+
+    #[test]
+    fn custom_color_applies_without_overriding_explicit_latex_color() {
+        let input = CString::new(r"x + \color{red}{y}").unwrap();
+        let opts = RatexOptions {
+            struct_size: std::mem::size_of::<RatexOptions>(),
+            display_mode: 1,
+            color: RatexColor {
+                r: 0.0,
+                g: 0.0,
+                b: 1.0,
+                a: 1.0,
+            },
+        };
+        let result = unsafe { ratex_parse_and_layout(input.as_ptr(), &opts) };
+        assert_eq!(result.error_code, 0);
+        let json = unsafe { CStr::from_ptr(result.data) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        unsafe { ratex_free_display_list(result.data) };
+
+        assert!(json.contains("\"b\":1.0"));
+        assert!(json.contains("\"r\":1.0"));
+    }
+
+    #[repr(C)]
+    struct LegacyRatexOptions {
+        struct_size: usize,
+        display_mode: c_int,
+    }
+
+    #[test]
+    fn short_legacy_options_remain_binary_compatible() {
+        let input = CString::new("x").unwrap();
+        let legacy_opts = LegacyRatexOptions {
+            struct_size: std::mem::size_of::<LegacyRatexOptions>(),
+            display_mode: 1,
+        };
+
+        let result = unsafe {
+            ratex_parse_and_layout(
+                input.as_ptr(),
+                &legacy_opts as *const LegacyRatexOptions as *const RatexOptions,
+            )
+        };
+        assert_eq!(result.error_code, 0);
+        assert!(!result.data.is_null());
+
+        let json = unsafe { CStr::from_ptr(result.data) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        unsafe { ratex_free_display_list(result.data) };
+
+        // Old callers do not provide the color tail, so layout must fall back to black.
+        assert!(json.contains("\"r\":0.0"));
+        assert!(json.contains("\"g\":0.0"));
+        assert!(json.contains("\"b\":0.0"));
+        assert!(json.contains("\"a\":1.0"));
     }
 }

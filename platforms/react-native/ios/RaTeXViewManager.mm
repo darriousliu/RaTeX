@@ -4,6 +4,7 @@
 #import <React/RCTComponentViewProtocol.h>
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTViewComponentView.h>
+#import <React/Fabric/RCTConversions.h>
 #import <react/renderer/components/RNRaTeXSpec/ComponentDescriptors.h>
 #import <react/renderer/components/RNRaTeXSpec/EventEmitters.h>
 #import <react/renderer/components/RNRaTeXSpec/Props.h>
@@ -97,6 +98,12 @@ using namespace facebook::react;
     _nativeView.displayMode = displayMode;
   }
 
+  UIColor *color = RCTUIColorFromSharedColor(newProps.color);
+  if ((color == nil) != (_nativeView.color == nil) ||
+      (color != nil && ![color isEqual:_nativeView.color])) {
+    _nativeView.color = color;
+  }
+
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -136,6 +143,7 @@ RCT_EXPORT_MODULE(RaTeXView)
 RCT_EXPORT_VIEW_PROPERTY(latex, NSString)
 RCT_EXPORT_VIEW_PROPERTY(fontSize, CGFloat)
 RCT_EXPORT_VIEW_PROPERTY(displayMode, BOOL)
+RCT_EXPORT_VIEW_PROPERTY(color, UIColor)
 RCT_EXPORT_VIEW_PROPERTY(onError, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onContentSizeChange, RCTDirectEventBlock)
 

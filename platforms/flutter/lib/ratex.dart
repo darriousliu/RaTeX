@@ -18,6 +18,13 @@ import 'src/ratex_painter.dart';
 export 'src/display_list.dart';
 export 'src/ratex_ffi.dart' show RaTeXException;
 
+RaTeXColor _toRaTeXColor(Color color) => RaTeXColor(
+  color.red / 255,
+  color.green / 255,
+  color.blue / 255,
+  color.alpha / 255,
+);
+
 // MARK: - Engine
 
 /// High-level entry point for RaTeX rendering.
@@ -31,25 +38,41 @@ class RaTeXEngine {
   ///
   /// [displayMode] — `true` (default) for display/block style (`$$...$$`);
   /// `false` for inline/text style (`$...$`).
+  /// [color] sets the default formula color; explicit LaTeX colors still take precedence.
   ///
   /// This is a synchronous, CPU-bound call. For long formulas, use [compute]
   /// with [ratexParseAndLayoutInIsolate]:
   /// ```dart
   /// final dl = await compute(
   ///   ratexParseAndLayoutInIsolate,
-  ///   (latex: tex, displayMode: true),
+  ///   (latex: tex, displayMode: true, colorValue: const Color(0xFF000000).value),
   /// );
   /// ```
-  DisplayList parseAndLayout(String latex, {bool displayMode = true}) =>
-      _ffi.parseAndLayout(latex, displayMode: displayMode);
+  DisplayList parseAndLayout(
+    String latex, {
+    bool displayMode = true,
+    Color color = const Color(0xFF000000),
+  }) => _ffi.parseAndLayout(
+    latex,
+    displayMode: displayMode,
+    color: _toRaTeXColor(color),
+  );
 }
 
 /// Arguments for [ratexParseAndLayoutInIsolate] (e.g. pass to [compute]).
-typedef RaTeXParseAndLayoutArgs = ({String latex, bool displayMode});
+typedef RaTeXParseAndLayoutArgs = ({
+  String latex,
+  bool displayMode,
+  int colorValue,
+});
 
 /// Top-level isolate entry for [compute]; calls [RaTeXEngine.parseAndLayout].
 DisplayList ratexParseAndLayoutInIsolate(RaTeXParseAndLayoutArgs args) =>
-    RaTeXEngine.instance.parseAndLayout(args.latex, displayMode: args.displayMode);
+    RaTeXEngine.instance.parseAndLayout(
+      args.latex,
+      displayMode: args.displayMode,
+      color: Color(args.colorValue),
+    );
 
 // MARK: - Stateful widget
 
@@ -71,6 +94,9 @@ class RaTeXWidget extends StatefulWidget {
   /// `true` (default) — display/block style; `false` — inline/text style.
   final bool displayMode;
 
+  /// Default formula color. Explicit LaTeX colors still take precedence.
+  final Color? color;
+
   /// Widget displayed while the formula is being computed.
   final Widget? loading;
 
@@ -82,6 +108,7 @@ class RaTeXWidget extends StatefulWidget {
     required this.latex,
     this.fontSize = 24,
     this.displayMode = true,
+    this.color,
     this.loading,
     this.onError,
   });
@@ -97,7 +124,17 @@ class _RaTeXWidgetState extends State<RaTeXWidget> {
   @override
   void initState() {
     super.initState();
-    _render();
+    if (widget.color != null) {
+      _render();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.color == null) {
+      _render();
+    }
   }
 
   @override
@@ -105,16 +142,25 @@ class _RaTeXWidgetState extends State<RaTeXWidget> {
     super.didUpdateWidget(old);
     if (old.latex != widget.latex ||
         old.fontSize != widget.fontSize ||
-        old.displayMode != widget.displayMode) {
+        old.displayMode != widget.displayMode ||
+        old.color != widget.color) {
       _render();
     }
   }
 
+  Color get _inheritedColor =>
+      DefaultTextStyle.of(context).style.color ?? Colors.black;
+
   Future<void> _render() async {
     try {
+      final resolvedColor = widget.color ?? _inheritedColor;
       final dl = await compute(
         ratexParseAndLayoutInIsolate,
-        (latex: widget.latex, displayMode: widget.displayMode),
+        (
+          latex: widget.latex,
+          displayMode: widget.displayMode,
+          colorValue: resolvedColor.value,
+        ),
       );
       if (mounted) setState(() { _displayList = dl; _error = null; });
     } on RaTeXException catch (e) {
