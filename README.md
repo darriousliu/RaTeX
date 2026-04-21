@@ -138,7 +138,7 @@ cargo build --release
 ### Render to PNG
 
 ```bash
-echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-render
+echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-render -- --color '#1E88E5'
 
 echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | cargo run --release -p ratex-render
 ```
@@ -147,7 +147,7 @@ echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | cargo run --release -p ratex-render
 
 ```bash
 # Default: glyphs as <text> elements (correct display requires KaTeX webfonts)
-echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-svg --features cli
+echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-svg --features cli -- --color '#1E88E5'
 
 # Standalone: embed glyph outlines as <path> — no external fonts needed
 echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
@@ -169,7 +169,7 @@ npm install ratex-wasm
 <link rel="stylesheet" href="node_modules/ratex-wasm/fonts.css" />
 <script type="module" src="node_modules/ratex-wasm/dist/ratex-formula.js"></script>
 
-<ratex-formula latex="\frac{-b \pm \sqrt{b^2-4ac}}{2a}" font-size="48"></ratex-formula>
+<ratex-formula latex="\frac{-b \pm \sqrt{b^2-4ac}}{2a}" font-size="48" color="#1E88E5"></ratex-formula>
 <ratex-formula latex="\ce{CO2 + H2O <=> H2CO3}" font-size="32"></ratex-formula>
 ```
 
