@@ -11,6 +11,7 @@ import UIKit
 public class RaTeXRNView: UIView {
 
     private let innerView = RaTeXView()
+    private var bridgedColor: UIColor?
 
     // MARK: - ObjC-bridgeable properties
 
@@ -49,8 +50,14 @@ public class RaTeXRNView: UIView {
     }
 
     @objc public var color: UIColor? {
-        get { innerView.color }
+        get { bridgedColor }
         set {
+            let oldBridgedColor = bridgedColor
+            let isSameValue = (newValue == nil && oldBridgedColor == nil)
+                || (newValue != nil && oldBridgedColor != nil && newValue!.isEqual(oldBridgedColor!))
+            guard !isSameValue else { return }
+
+            bridgedColor = newValue
             innerView.color = newValue ?? .black
             lastReportedContentSize = .zero
             innerView.invalidateIntrinsicContentSize()

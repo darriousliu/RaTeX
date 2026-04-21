@@ -120,6 +120,7 @@ class RaTeXWidget extends StatefulWidget {
 class _RaTeXWidgetState extends State<RaTeXWidget> {
   DisplayList? _displayList;
   RaTeXException? _error;
+  Color? _lastInheritedColor;
 
   @override
   void initState() {
@@ -132,7 +133,14 @@ class _RaTeXWidgetState extends State<RaTeXWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (widget.color == null) {
+    if (widget.color != null) {
+      _lastInheritedColor = null;
+      return;
+    }
+
+    final inheritedColor = _inheritedColor;
+    if (_lastInheritedColor != inheritedColor) {
+      _lastInheritedColor = inheritedColor;
       _render();
     }
   }
@@ -144,6 +152,7 @@ class _RaTeXWidgetState extends State<RaTeXWidget> {
         old.fontSize != widget.fontSize ||
         old.displayMode != widget.displayMode ||
         old.color != widget.color) {
+      _lastInheritedColor = widget.color == null ? _inheritedColor : null;
       _render();
     }
   }

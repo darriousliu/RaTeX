@@ -128,6 +128,29 @@ impl From<RatexColor> for ratex_types::color::Color {
     }
 }
 
+fn validate_color(color: RatexColor) -> Result<ratex_types::color::Color, String> {
+    fn validate_component(name: &str, value: f32) -> Result<(), String> {
+        if !value.is_finite() {
+            return Err(format!(
+                "invalid color.{name}: expected a finite float in [0, 1], got {value}"
+            ));
+        }
+        if !(0.0..=1.0).contains(&value) {
+            return Err(format!(
+                "invalid color.{name}: expected a float in [0, 1], got {value}"
+            ));
+        }
+        Ok(())
+    }
+
+    validate_component("r", color.r)?;
+    validate_component("g", color.g)?;
+    validate_component("b", color.b)?;
+    validate_component("a", color.a)?;
+
+    Ok(color.into())
+}
+
 #[repr(C)]
 pub struct RatexOptions {
     /// Must be set to `sizeof(RatexOptions)` by the caller.
@@ -210,7 +233,10 @@ pub unsafe extern "C" fn ratex_parse_and_layout(
             + std::mem::size_of::<RatexColor>();
 
         if opts_ref.struct_size >= color_size {
-            opts_ref.color.into()
+            match validate_color(opts_ref.color) {
+                Ok(color) => color,
+                Err(msg) => return err_result(&msg),
+            }
         } else {
             ratex_types::color::Color::BLACK
         }
@@ -398,5 +424,29 @@ mod tests {
         assert!(json.contains("\"g\":0.0"));
         assert!(json.contains("\"b\":0.0"));
         assert!(json.contains("\"a\":1.0"));
+    }
+
+    #[test]
+    fn invalid_color_returns_error() {
+        let input = CString::new("x").unwrap();
+        let opts = RatexOptions {
+            struct_size: std::mem::size_of::<RatexOptions>(),
+            display_mode: 1,
+            color: RatexColor {
+                r: f32::NAN,
+                g: 0.0,
+                b: 0.0,
+                a: 1.0,
+            },
+        };
+
+        let result = unsafe { ratex_parse_and_layout(input.as_ptr(), &opts) };
+        assert_ne!(result.error_code, 0);
+        assert!(result.data.is_null());
+
+        let err = ratex_get_last_error();
+        assert!(!err.is_null());
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(msg.contains("invalid color.r"));
     }
 }
