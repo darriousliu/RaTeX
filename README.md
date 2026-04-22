@@ -72,13 +72,30 @@ RaTeX is the same KaTeX-compatible math engine compiled to a portable Rust core,
 
 From the demo apps in [`demo/screenshots/`](demo/screenshots/).
 
-| iOS | Android |
-|:---:|:---:|
-| ![RaTeX demo on iOS](demo/screenshots/ios.png) | ![RaTeX demo on Android](demo/screenshots/android.png) |
-| **Flutter (iOS)** | **React Native (iOS)** |
-| ![RaTeX demo on Flutter iOS](demo/screenshots/flutter-ios.png) | ![RaTeX demo on React Native iOS](demo/screenshots/react-native-ios.png) |
-| **Compose Multiplatform** |  |
-| ![RaTeX demo on Compose Multiplatform](demo/screenshots/compose-multiplatform.png) |  |
+<table>
+  <tr>
+    <th width="50%">iOS</th>
+    <th width="50%">Android</th>
+  </tr>
+  <tr>
+    <td align="center"><img alt="RaTeX demo on iOS" src="demo/screenshots/ios.png" width="100%"/></td>
+    <td align="center"><img alt="RaTeX demo on Android" src="demo/screenshots/android.png" width="100%"/></td>
+  </tr>
+  <tr>
+    <th width="50%">Flutter (iOS)</th>
+    <th width="50%">React Native (iOS)</th>
+  </tr>
+  <tr>
+    <td align="center"><img alt="RaTeX demo on Flutter iOS" src="demo/screenshots/flutter-ios.png" width="100%"/></td>
+    <td align="center"><img alt="RaTeX demo on React Native iOS" src="demo/screenshots/react-native-ios.png" width="100%"/></td>
+  </tr>
+  <tr>
+    <th colspan="2">Compose Multiplatform</th>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img alt="RaTeX demo on Compose Multiplatform" src="demo/screenshots/compose-multiplatform.png" width="100%"/></td>
+  </tr>
+</table>
 
 ---
 

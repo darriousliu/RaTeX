@@ -72,13 +72,30 @@ RaTeX 是同一个 KaTeX 兼容的数学引擎，但编译到一个可移植的 
 
 演示应用截图见 [`demo/screenshots/`](demo/screenshots/)。
 
-| iOS | Android |
-|:---:|:---:|
-| ![RaTeX iOS 演示](demo/screenshots/ios.png) | ![RaTeX Android 演示](demo/screenshots/android.png) |
-| **Flutter（iOS）** | **React Native（iOS）** |
-| ![RaTeX Flutter iOS 演示](demo/screenshots/flutter-ios.png) | ![RaTeX React Native iOS 演示](demo/screenshots/react-native-ios.png) |
-| **Compose Multiplatform** |  |
-| ![RaTeX Compose Multiplatform 演示](demo/screenshots/compose-multiplatform.png) |  |
+<table>
+  <tr>
+    <th width="50%">iOS</th>
+    <th width="50%">Android</th>
+  </tr>
+  <tr>
+    <td align="center"><img alt="RaTeX iOS 演示" src="demo/screenshots/ios.png" width="100%"/></td>
+    <td align="center"><img alt="RaTeX Android 演示" src="demo/screenshots/android.png" width="100%"/></td>
+  </tr>
+  <tr>
+    <th width="50%">Flutter（iOS）</th>
+    <th width="50%">React Native（iOS）</th>
+  </tr>
+  <tr>
+    <td align="center"><img alt="RaTeX Flutter iOS 演示" src="demo/screenshots/flutter-ios.png" width="100%"/></td>
+    <td align="center"><img alt="RaTeX React Native iOS 演示" src="demo/screenshots/react-native-ios.png" width="100%"/></td>
+  </tr>
+  <tr>
+    <th colspan="2">Compose Multiplatform</th>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img alt="RaTeX Compose Multiplatform 演示" src="demo/screenshots/compose-multiplatform.png" width="100%"/></td>
+  </tr>
+</table>
 
 ---
 
