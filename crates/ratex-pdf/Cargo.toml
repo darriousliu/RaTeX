@@ -13,8 +13,8 @@ ratex-types = { workspace = true }
 ratex-font  = { workspace = true }
 pdf-writer  = "0.14"
 subsetter   = "0.2"
-skrifa      = "0.37"
-miniz_oxide = "0.8"
+skrifa      = "0.42"
+miniz_oxide = "0.9"
 
 ratex-layout      = { workspace = true, optional = true }
 ratex-parser      = { workspace = true, optional = true }
