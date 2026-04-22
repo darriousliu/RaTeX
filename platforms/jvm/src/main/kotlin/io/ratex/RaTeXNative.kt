@@ -11,7 +11,7 @@ import java.awt.Color as AwtColor
 /**
  * JNA mapping of `RatexOptions` from `ratex.h`.
  *
- * Always pass `struct_size = Structure.size(RatexOptions::class.java)`.
+ * Always pass `struct_size = Native.getNativeSize(RatexOptions::class.java, null)`.
  */
 @Structure.FieldOrder(
     "r",
@@ -47,7 +47,7 @@ class RatexColorStruct() : Structure() {
 )
 class RatexOptions : Structure() {
     /** Must be set to the size of this struct. */
-    @JvmField var struct_size: Long = Structure.size(RatexOptions::class.java).toLong()
+    @JvmField var struct_size: Long = Native.getNativeSize(RatexOptions::class.java, null).toLong()
     /**
      * Rendering mode:
      *   0 = inline / text style  ($...$)
