@@ -7,7 +7,7 @@
 一个 Rust 核心，一套显示列表，各平台原生渲染。
 
 ```
-\frac{-b \pm \sqrt{b^2-4ac}}{2a}   →   iOS · Android · Flutter · React Native · Web · PNG · SVG
+\frac{-b \pm \sqrt{b^2-4ac}}{2a}   →   iOS · Android · Flutter · React Native · Web · PNG · SVG · PDF
 ```
 
 **[→ 在线演示](https://erweixin.github.io/RaTeX/demo/live.html)** — 输入 LaTeX，对比 RaTeX vs KaTeX ·
@@ -25,10 +25,10 @@ RaTeX 是同一个 KaTeX 兼容的数学引擎，但编译到一个可移植的 
 | | KaTeX | MathJax | **RaTeX** |
 |---|---|---|---|
 | 运行时 | JS (V8) | JS (V8) | **纯 Rust** |
-| 可运行的目标 | 仅 Web* | 仅 Web* | **iOS · Android · Flutter · RN · Web · 服务端 · SVG** |
+| 可运行的目标 | 仅 Web* | 仅 Web* | **iOS · Android · Flutter · RN · Web · 服务端 · SVG · PDF** |
 | 移动端 | WebView 套壳 | WebView 套壳 | **原生** |
 | 服务端渲染 | headless Chrome | mathjax-node | **单二进制，无需 JS 运行时** |
-| 输出形态 | DOM（`<span>` 树）| DOM / SVG | **显示列表 → Canvas / PNG / SVG** |
+| 输出形态 | DOM（`<span>` 树）| DOM / SVG | **显示列表 → Canvas / PNG / SVG / PDF** |
 | 内存模型 | GC / 堆 | GC / 堆 | **可预期，无 GC** |
 | 离线 | 视情况 | 视情况 | **支持** |
 | 语法覆盖 | 100% | ~100% | **~99%** |
@@ -67,6 +67,7 @@ RaTeX 是同一个 KaTeX 兼容的数学引擎，但编译到一个可移植的 
 | **Web** | WASM → Canvas 2D · `<ratex-formula>` Web 组件 | 开箱即用 |
 | **服务端 / CI** | tiny-skia → PNG 光栅化 | 开箱即用 |
 | **SVG** | `ratex-svg` → 自包含矢量 SVG 导出 | 开箱即用 |
+| **PDF** | `ratex-pdf` → 内嵌 KaTeX 字体的矢量 PDF | 开箱即用 |
 
 ### 截图
 
@@ -114,11 +115,13 @@ flowchart LR
     G[ratex-wasm\nWeb / Canvas 2D]
     H[ratex-render\nPNG · tiny-skia]
     I[ratex-svg\nSVG]
+    J[ratex-pdf\nPDF]
     A --> B --> C --> D --> E
     E --> F
     E --> G
     E --> H
     E --> I
+    E --> J
 ```
 
 | Crate | 职责 |
@@ -132,6 +135,7 @@ flowchart LR
 | `ratex-wasm` | WASM：流水线 → DisplayList JSON（浏览器） |
 | `ratex-render` | 服务端：DisplayList → PNG（tiny-skia） |
 | `ratex-svg` | SVG 导出：DisplayList → SVG 字符串 |
+| `ratex-pdf` | PDF 导出：DisplayList → PDF 字节流（[pdf-writer](https://docs.rs/pdf-writer)，内嵌 CID 字体） |
 
 ---
 
@@ -171,6 +175,19 @@ echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
 ```
 
 `standalone` feature（由 `cli` 启用）会从 `--font-dir` 下的 KaTeX TTF 提取字形轮廓并内嵌到 SVG。若启用 `embed-fonts`，则 TTF 由 [`ratex-katex-fonts`](crates/ratex-katex-fonts) crate 在编译期嵌入，无需指定字体目录；升级 KaTeX 字体后可运行 [`scripts/sync-katex-ttf-to-font-crate.sh`](scripts/sync-katex-ttf-to-font-crate.sh) 同步到该 crate。
+
+### 渲染为 PDF
+
+```bash
+# `cli` 已隐含 `embed-fonts`：字体由 ratex-katex-fonts 打包提供（--font-dir 无效）
+echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-pdf --features cli -- --output-dir ./out
+
+# 与上面字体来源相同（显式写出 embed-fonts）
+echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | \
+  cargo run --release -p ratex-pdf --features "cli embed-fonts" -- --output-dir ./out
+```
+
+`ratex-pdf` 对 stdin 的每一行非空公式输出一个 `.pdf` 文件。支持 `--output-dir`（默认 `output_pdf`）、`--font-size`、`--dpr`、以及 `--inline`（行内公式样式，而非块级 display）。`render-pdf` 可执行文件始终从 `ratex-katex-fonts` 取字形，**`--font-dir` 不会改变嵌入的字体**。若在库中关闭 `embed-fonts`，请在 `PdfOptions.font_dir` 中指定 KaTeX TTF 目录。
 
 ### 在浏览器中使用（WASM）
 

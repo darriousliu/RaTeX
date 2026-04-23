@@ -7,7 +7,7 @@
 One Rust core, one display list, every platform renders natively.
 
 ```
-\frac{-b \pm \sqrt{b^2-4ac}}{2a}   →   iOS · Android · Flutter · React Native · Web · PNG · SVG
+\frac{-b \pm \sqrt{b^2-4ac}}{2a}   →   iOS · Android · Flutter · React Native · Web · PNG · SVG · PDF
 ```
 
 **[→ Live Demo](https://erweixin.github.io/RaTeX/demo/live.html)** — type LaTeX and compare RaTeX vs KaTeX side-by-side ·
@@ -25,10 +25,10 @@ RaTeX is the same KaTeX-compatible math engine compiled to a portable Rust core,
 | | KaTeX | MathJax | **RaTeX** |
 |---|---|---|---|
 | Runtime | JS (V8) | JS (V8) | **Pure Rust** |
-| Surfaces it runs on | Web only* | Web only* | **iOS · Android · Flutter · RN · Web · server · SVG** |
+| Surfaces it runs on | Web only* | Web only* | **iOS · Android · Flutter · RN · Web · server · SVG · PDF** |
 | Mobile | WebView wrapper | WebView wrapper | **Native** |
 | Server-side rendering | headless Chrome | mathjax-node | **Single binary, no JS runtime** |
-| Output substrate | DOM (`<span>` tree) | DOM / SVG | **Display list → Canvas / PNG / SVG** |
+| Output substrate | DOM (`<span>` tree) | DOM / SVG | **Display list → Canvas / PNG / SVG / PDF** |
 | Memory | GC / heap | GC / heap | **Predictable, no GC** |
 | Offline | Depends | Depends | **Yes** |
 | Syntax coverage | 100% | ~100% | **~99%** |
@@ -67,6 +67,7 @@ RaTeX is the same KaTeX-compatible math engine compiled to a portable Rust core,
 | **Web** | WASM → Canvas 2D · `<ratex-formula>` Web Component | Out of the box |
 | **Server / CI** | tiny-skia → PNG rasterizer | Out of the box |
 | **SVG** | `ratex-svg` → self-contained vector SVG | Out of the box |
+| **PDF** | `ratex-pdf` → vector PDF with embedded KaTeX fonts | Out of the box |
 
 ### Screenshots
 
@@ -114,11 +115,13 @@ flowchart LR
     G[ratex-wasm\nWeb / Canvas 2D]
     H[ratex-render\nPNG · tiny-skia]
     I[ratex-svg\nSVG]
+    J[ratex-pdf\nPDF]
     A --> B --> C --> D --> E
     E --> F
     E --> G
     E --> H
     E --> I
+    E --> J
 ```
 
 | Crate | Role |
@@ -132,6 +135,7 @@ flowchart LR
 | `ratex-wasm` | WASM: pipeline → DisplayList JSON for the browser |
 | `ratex-render` | Server-side: DisplayList → PNG (tiny-skia) |
 | `ratex-svg` | SVG export: DisplayList → SVG string |
+| `ratex-pdf` | PDF export: DisplayList → PDF bytes ([pdf-writer](https://docs.rs/pdf-writer), embedded CID fonts) |
 
 ---
 
@@ -168,6 +172,19 @@ echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
 The `standalone` feature (enabled by `cli`) reads KaTeX TTF files from `--font-dir` and embeds glyph outlines directly into the SVG, producing a fully self-contained file that renders correctly without any CSS or web fonts.
 
 The `embed-fonts` feature (implicitly enables `standalone`) bundles the same TTFs via the [`ratex-katex-fonts`](crates/ratex-katex-fonts) crate, so no `--font-dir` is needed and builds from crates.io stay self-contained. To refresh bundled fonts after upgrading KaTeX, run [`scripts/sync-katex-ttf-to-font-crate.sh`](scripts/sync-katex-ttf-to-font-crate.sh).
+
+### Render to PDF
+
+```bash
+# `cli` implies `embed-fonts`: KaTeX TTFs are bundled via ratex-katex-fonts (--font-dir is ignored)
+echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-pdf --features cli -- --output-dir ./out
+
+# Equivalent font loading (explicit embed-fonts)
+echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | \
+  cargo run --release -p ratex-pdf --features "cli embed-fonts" -- --output-dir ./out
+```
+
+The `ratex-pdf` crate writes one `.pdf` per non-empty line from stdin. Options include `--output-dir` (default `output_pdf`), `--font-size`, `--dpr`, and `--inline` (text style instead of display). The `render-pdf` binary always loads fonts from `ratex-katex-fonts`, so `--font-dir` does not change embedding. For library use without `embed-fonts`, set `PdfOptions.font_dir` to your KaTeX TTF directory instead.
 
 ### Browser (WASM)
 

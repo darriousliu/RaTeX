@@ -30,7 +30,8 @@ RaTeX/
 │   ├── ratex-ffi/                # C ABI: LaTeX → DisplayList JSON (+ Android JNI)
 │   ├── ratex-render/             # DisplayList → PNG (tiny-skia, server-side)
 │   ├── ratex-wasm/               # WASM: LaTeX → DisplayList JSON (browser)
-│   └── ratex-svg/                # SVG export: DisplayList → SVG string (vector output)
+│   ├── ratex-svg/                # SVG export: DisplayList → SVG string (vector output)
+│   └── ratex-pdf/                # PDF export: DisplayList → PDF (pdf-writer, embedded fonts)
 │
 ├── platforms/
 │   ├── ios/                      # Swift + XCFramework + CoreGraphics
@@ -86,6 +87,7 @@ members = [
     "crates/ratex-render",
     "crates/ratex-svg",
     "crates/ratex-wasm",
+    "crates/ratex-pdf",
 ]
 
 [workspace.package]
@@ -120,11 +122,12 @@ serde_json = "1.0"
 | **ratex-lexer** | LaTeX string → token stream |
 | **ratex-parser** | Token stream → ParseNode AST (macro expansion, functions) |
 | **ratex-layout** | AST → LayoutBox tree → `to_display_list` → DisplayList |
-| **ratex-katex-fonts** | Bundled KaTeX `.ttf` files + embed API; optional dep for `ratex-svg` / `ratex-render` `embed-fonts` |
+| **ratex-katex-fonts** | Bundled KaTeX `.ttf` files + embed API; optional dep for `ratex-svg` / `ratex-render` / `ratex-pdf` `embed-fonts` |
 | **ratex-ffi** | C ABI: `ratex_parse_and_layout` → DisplayList JSON; Android `jni` module when targeting Android |
 | **ratex-render** | DisplayList → PNG via tiny-skia + ab_glyph (server/CI); `embed-fonts` uses `ratex-katex-fonts` |
 | **ratex-wasm** | WASM: parse + layout → DisplayList JSON for browser |
 | **ratex-svg** | SVG export: DisplayList → SVG string; `standalone` reads TTF from `font_dir`; `embed-fonts` uses `ratex-katex-fonts`; `cli` adds `render-svg` binary |
+| **ratex-pdf** | PDF export: DisplayList → PDF via [pdf-writer](https://docs.rs/pdf-writer) + font subsetting; `embed-fonts` uses `ratex-katex-fonts`; `cli` adds `render-pdf` binary |
 
 ---
 
@@ -225,6 +228,32 @@ crates/ratex-svg/
 
 ---
 
+## ratex-pdf
+
+PDF export crate. Converts a `DisplayList` to PDF bytes via `render_to_pdf(list, &PdfOptions)`.
+
+```
+crates/ratex-pdf/
+├── Cargo.toml
+└── src/
+    ├── lib.rs
+    ├── fonts.rs     # load KaTeX TTF (disk or embed-fonts), subset, embed CIDFontType2
+    ├── renderer.rs  # content stream, paths, text
+    └── bin/
+        └── render_pdf.rs  # CLI binary (feature=cli): stdin LaTeX → one PDF per line
+```
+
+**Features:**
+
+| Feature | Description |
+|---------|-------------|
+| `embed-fonts` | Load TTFs from `ratex-katex-fonts` (no on-disk `font_dir` required). |
+| `cli` | Enables the `render-pdf` binary (implies `embed-fonts` + `ratex-layout` / `ratex-parser`). The CLI’s `--font-dir` flag does not affect embedding (same as any `embed-fonts` build). |
+
+**`PdfOptions` fields:** `font_size`, `padding`, `stroke_width`, `font_dir` (KaTeX TTF directory when **`embed-fonts` is off**; must be set — `PdfOptions::default` uses an empty `font_dir`. When `embed-fonts` is on, `font_dir` is ignored.)
+
+---
+
 ## Dependency graph
 
 ```
@@ -241,7 +270,8 @@ ratex-layout
     ├── ratex-ffi    (C ABI for native)
     ├── ratex-render (PNG)
     ├── ratex-wasm   (browser JSON)
-    └── ratex-svg    (SVG vector output)
+    ├── ratex-svg    (SVG vector output)
+    └── ratex-pdf    (PDF)
     ↑
 platforms/ (ios, android, flutter, react-native, web)
 ```
