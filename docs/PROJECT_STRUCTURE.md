@@ -248,9 +248,9 @@ crates/ratex-pdf/
 | Feature | Description |
 |---------|-------------|
 | `embed-fonts` | Load TTFs from `ratex-katex-fonts` (no on-disk `font_dir` required). |
-| `cli` | Enables the `render-pdf` binary (implies `embed-fonts` + `ratex-layout` / `ratex-parser`). |
+| `cli` | Enables the `render-pdf` binary (implies `embed-fonts` + `ratex-layout` / `ratex-parser`). The CLI’s `--font-dir` flag does not affect embedding (same as any `embed-fonts` build). |
 
-**`PdfOptions` fields:** `font_size`, `padding`, `stroke_width`, `font_dir` (KaTeX TTF directory; ignored for glyph loading when `embed-fonts` is enabled — fonts come from the crate).
+**`PdfOptions` fields:** `font_size`, `padding`, `stroke_width`, `font_dir` (KaTeX TTF directory when **`embed-fonts` is off**; must be set — `PdfOptions::default` uses an empty `font_dir`. When `embed-fonts` is on, `font_dir` is ignored.)
 
 ---
 

@@ -176,15 +176,15 @@ The `embed-fonts` feature (implicitly enables `standalone`) bundles the same TTF
 ### Render to PDF
 
 ```bash
-# Needs KaTeX TTFs on disk (--font-dir) unless embed-fonts is enabled
+# `cli` implies `embed-fonts`: KaTeX TTFs are bundled via ratex-katex-fonts (--font-dir is ignored)
 echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-pdf --features cli -- --output-dir ./out
 
-# Self-contained: fonts from ratex-katex-fonts, no --font-dir
+# Equivalent font loading (explicit embed-fonts)
 echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | \
   cargo run --release -p ratex-pdf --features "cli embed-fonts" -- --output-dir ./out
 ```
 
-The `ratex-pdf` crate writes one `.pdf` per non-empty line from stdin. Options include `--font-dir`, `--output-dir` (default `output_pdf`), `--font-size`, `--dpr`, and `--inline` (text style instead of display).
+The `ratex-pdf` crate writes one `.pdf` per non-empty line from stdin. Options include `--output-dir` (default `output_pdf`), `--font-size`, `--dpr`, and `--inline` (text style instead of display). The `render-pdf` binary always loads fonts from `ratex-katex-fonts`, so `--font-dir` does not change embedding. For library use without `embed-fonts`, set `PdfOptions.font_dir` to your KaTeX TTF directory instead.
 
 ### Browser (WASM)
 

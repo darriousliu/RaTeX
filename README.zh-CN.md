@@ -179,15 +179,15 @@ echo '\int_0^\infty e^{-x^2} dx = \frac{\sqrt{\pi}}{2}' | \
 ### 渲染为 PDF
 
 ```bash
-# 未启用 embed-fonts 时需在磁盘上提供 KaTeX TTF（--font-dir）
+# `cli` 已隐含 `embed-fonts`：字体由 ratex-katex-fonts 打包提供（--font-dir 无效）
 echo '\frac{1}{2} + \sqrt{x}' | cargo run --release -p ratex-pdf --features cli -- --output-dir ./out
 
-# 自包含：字体来自 ratex-katex-fonts，无需 --font-dir
+# 与上面字体来源相同（显式写出 embed-fonts）
 echo '\ce{H2SO4 + 2NaOH -> Na2SO4 + 2H2O}' | \
   cargo run --release -p ratex-pdf --features "cli embed-fonts" -- --output-dir ./out
 ```
 
-`ratex-pdf` 对 stdin 的每一行非空公式输出一个 `.pdf` 文件。支持 `--font-dir`、`--output-dir`（默认 `output_pdf`）、`--font-size`、`--dpr`、以及 `--inline`（行内公式样式，而非块级 display）。
+`ratex-pdf` 对 stdin 的每一行非空公式输出一个 `.pdf` 文件。支持 `--output-dir`（默认 `output_pdf`）、`--font-size`、`--dpr`、以及 `--inline`（行内公式样式，而非块级 display）。`render-pdf` 可执行文件始终从 `ratex-katex-fonts` 取字形，**`--font-dir` 不会改变嵌入的字体**。若在库中关闭 `embed-fonts`，请在 `PdfOptions.font_dir` 中指定 KaTeX TTF 目录。
 
 ### 在浏览器中使用（WASM）
 

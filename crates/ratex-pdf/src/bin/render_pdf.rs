@@ -11,6 +11,8 @@ use ratex_types::math_style::MathStyle;
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // `cli` implies `embed-fonts`; glyph bytes come from ratex-katex-fonts.
+    // `PdfOptions::font_dir` is ignored for loading but kept for API compatibility.
     let font_dir = args
         .iter()
         .position(|a| a == "--font-dir")
@@ -49,7 +51,7 @@ fn main() {
         font_dir,
     };
 
-    let inline = args.contains(&"--inline".to_string());
+    let inline = args.iter().any(|a| a == "--inline");
     let style = if inline {
         MathStyle::Text
     } else {
@@ -59,6 +61,7 @@ fn main() {
 
     let stdin = io::stdin();
     let mut idx = 0;
+    let mut ok_count = 0;
     for line in stdin.lock().lines() {
         let line = line.expect("Failed to read line");
         let expr = line.trim();
@@ -71,6 +74,7 @@ fn main() {
             Ok(bytes) => {
                 let path = PathBuf::from(&output_dir).join(format!("{:04}.pdf", idx));
                 std::fs::write(&path, &bytes).expect("Failed to write PDF");
+                ok_count += 1;
                 println!("OK  {:4} {}", idx, expr);
             }
             Err(e) => {
@@ -79,7 +83,10 @@ fn main() {
         }
     }
 
-    println!("\nWrote {} PDF(s) to {}/", idx, output_dir);
+    println!(
+        "\nProcessed {} formula(s), wrote {} PDF(s) to {}/",
+        idx, ok_count, output_dir
+    );
 }
 
 fn pdf_formula(
