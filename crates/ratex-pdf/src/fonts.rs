@@ -203,7 +203,7 @@ pub(crate) fn embed_fonts(
         // Glyph widths (in 1000-unit space).
         let hmtx = sf.hmtx().map_err(|_| "no hmtx table")?;
         let mut widths: Vec<(u16, f32)> = Vec::new();
-        for (&old_gid, _) in &usage.glyphs {
+        for &old_gid in usage.glyphs.keys() {
             let new_cid = remapper.get(old_gid).unwrap_or(0);
             let gid = skrifa::raw::types::GlyphId::new(old_gid as u32);
             let advance = hmtx.advance(gid).unwrap_or(0) as f32 * scale;

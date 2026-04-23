@@ -198,13 +198,15 @@ fn build_content_stream(
             } => {
                 emit_line(
                     &mut content,
-                    *x * em + pad,
-                    *y * em + pad,
-                    *width * em,
-                    *thickness * em,
-                    color,
-                    *dashed,
-                    page_h,
+                    &LineParams {
+                        x: *x * em + pad,
+                        y: *y * em + pad,
+                        width: *width * em,
+                        thickness: *thickness * em,
+                        color: *color,
+                        dashed: *dashed,
+                        page_h,
+                    },
                 );
             }
             DisplayItem::Rect {
@@ -323,39 +325,40 @@ fn emit_glyph(
 // Line
 // ---------------------------------------------------------------------------
 
-fn emit_line(
-    content: &mut Content,
+struct LineParams {
     x: f64,
     y: f64,
     width: f64,
     thickness: f64,
-    color: &Color,
+    color: Color,
     dashed: bool,
     page_h: f64,
-) {
-    let t = thickness.max(0.5);
+}
 
-    set_fill_rgb(content, color);
+fn emit_line(content: &mut Content, line: &LineParams) {
+    let t = line.thickness.max(0.5);
 
-    if dashed {
+    set_fill_rgb(content, &line.color);
+
+    if line.dashed {
         let dash_len = (4.0 * t).max(1.0);
         let gap_len = (4.0 * t).max(1.0);
         let period = dash_len + gap_len;
-        let top = y - t / 2.0;
-        let mut cur_x = x;
-        while cur_x < x + width {
-            let seg_w = dash_len.min(x + width - cur_x).max(0.5);
+        let top = line.y - t / 2.0;
+        let mut cur_x = line.x;
+        while cur_x < line.x + line.width {
+            let seg_w = dash_len.min(line.x + line.width - cur_x).max(0.5);
             let pdf_x = cur_x as f32;
-            let pdf_y = flip_y(top + t, page_h); // bottom edge in PDF coords
+            let pdf_y = flip_y(top + t, line.page_h); // bottom edge in PDF coords
             content.rect(pdf_x, pdf_y, seg_w as f32, t as f32);
             cur_x += period;
         }
         content.fill_nonzero();
     } else {
-        let top = y - t / 2.0;
-        let pdf_x = x as f32;
-        let pdf_y = flip_y(top + t, page_h);
-        content.rect(pdf_x, pdf_y, width as f32, t as f32);
+        let top = line.y - t / 2.0;
+        let pdf_x = line.x as f32;
+        let pdf_y = flip_y(top + t, line.page_h);
+        content.rect(pdf_x, pdf_y, line.width as f32, t as f32);
         content.fill_nonzero();
     }
 }
